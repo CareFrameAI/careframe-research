@@ -41,7 +41,7 @@ CareFrame is an integrated research and clinical data platform designed to strea
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/careframe.git
+   git clone https://github.com/CareFrameAI/careframe-research.git
    ```
 
 2. Install dependencies:

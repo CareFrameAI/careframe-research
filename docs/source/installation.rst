@@ -22,8 +22,8 @@ Or by cloning the repository:
 
 .. code-block:: bash
 
-   git clone https://github.com/yourusername/careframe.git
-   cd careframe
+   git clone https://github.com/CareFrameAI/careframe-research.git
+   cd careframe-research
    pip install -e .
 
 Installing Dependencies

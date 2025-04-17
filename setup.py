@@ -13,7 +13,7 @@ setup(
     description="An integrated research and clinical data platform",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/careframe",
+    url="https://github.com/CareFrameAI/careframe-research",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",

@@ -12,7 +12,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 
 If you find a bug in the project:
 
-1. Check if the bug has already been reported in the [Issues](https://github.com/yourusername/careframe/issues).
+1. Check if the bug has already been reported in the [Issues](https://github.com/CareFrameAI/careframe-research/issues).
 2. If not, create a new issue, providing a clear description and steps to reproduce.
 3. Include relevant details like your operating system, Python version, and any error messages.
 
