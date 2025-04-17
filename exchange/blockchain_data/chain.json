@@ -1,0 +1,110 @@
+[
+  {
+    "index": 0,
+    "timestamp": "2025-04-07 20:00:11.923181",
+    "transactions": [
+      {
+        "type": "GENESIS"
+      }
+    ],
+    "previous_hash": "0",
+    "hash": "2313469dc2275880d80d9006c8b2af769fdcef355ffb4e28dd18db695416f2c2",
+    "validations": [],
+    "finalized": false,
+    "finalization_time": null
+  },
+  {
+    "index": 1,
+    "timestamp": "2025-04-07 20:00:12.034230",
+    "transactions": [
+      {
+        "type": "CREATE_HYPOTHESIS",
+        "hypothesis_id": "HYP-7ccbca50baee608e",
+        "data": {
+          "claim": "Regular use of Drug X reduces mortality in patients with Condition Y by 30%",
+          "model_based": true,
+          "keywords": [
+            "Drug X",
+            "Condition Y",
+            "mortality"
+          ],
+          "id": "HYP-7ccbca50baee608e"
+        },
+        "submitter_id": "researcher_alice",
+        "timestamp": "2025-04-07 20:00:11.996455",
+        "signature": "PbDYJ/yU9+I7rWf1oPfU9fEXg1Q6SbCeO7r4/2g1FDOvd7AaQS3wJ3YxH9M4r3XJAeq7FYykJdfrv+3MoHZCMeHdGkxDXPdQvY0wVybivjoOY5rEL+eoHOrFQ69eWc7TW1VKp4X/uzuV/Hf/6RcbP6Hu5+cF90tl6LVZhyoxA+DFiTW4kbxe9KcC2RSdEI6ZULSQ4XM+Ylze/AAk9+56bwApSyMnbea9znmVmXBGzq0IG2DAy4WAvxrswiS/NpsEpbS5xQnzI1bkxzKV3AHVEVjxqYP/bYG1cA9V87oHpjNZwRowoslJD7flW/li1/lExvjFFCy+wV4zwZStSaGCKw=="
+      }
+    ],
+    "previous_hash": "2313469dc2275880d80d9006c8b2af769fdcef355ffb4e28dd18db695416f2c2",
+    "hash": "b12621fd9a3a492f6823b91d5785b09cb3aa510dd7c684935f26f7d5b3e8112e",
+    "validations": [
+      {
+        "validator_id": "harvard_med",
+        "signature": "ckbBcOCjVujU1PGEkCWWpnD4RO3IiVS/vLQvfBhFMg6nRBRIpUnFqBRfGH/gvh7Zyqm34h2buLgZB4+a81xgXmfzIWs2BDarZhl7EfsjZSD5ap9eFHyw4LIDm/X1Z+F9B4EAfaks4NDOtk0QNMnRmB4tqrCtCeTv1+jDYmwVwxIVIYJMcPOB6Wa0JqwefxqzGYcE0JqNtb0Xu4fFoQgDdHuZUbIMzyYYbVUle+TYnTzhAWU296jE2ira4wH1Fe5IeZp3FJZYKnVqfxctJ2BKA/yij3dEfSUDV/8FbCDG6+rFq9XGE6fb2ImrghEgojgaXsX5HhBxa1F6pfx8OglT+A==",
+        "timestamp": "2025-04-07 20:00:12.071243"
+      },
+      {
+        "validator_id": "mayo_clinic",
+        "signature": "XSpR63I0wkx5UiGO80tkHkpC/VjiHy6gHuCS3Otfq3K92c805AN4aUrutev4WY/fQepYBGifKp1DtMb4TE9VBdD8QuyQb+2xrHWFevYUr7z9+WLRB9vCH788YcsU7dEFL0Gcc63jN5X3IzQPF7rJrxpM0EYEQsAi/NOhbi7yv/8s8koAtPV1Xz3kOlr1Bqg72kB20EAM7kZ43VeCish9STj9N3ihyx+G1TvyfKkT2MQuhP2SRwUK7cGC4Ue1BzKbFlIVoKHRvmOcD3C6o50rNM27FJcK8Ar1LA2oboH0dOJhqUuQbXrhS69Tp4WRa2cBFt0bX8vUZdwLr6LURpl/Hg==",
+        "timestamp": "2025-04-07 20:00:12.113152"
+      }
+    ],
+    "finalized": true,
+    "finalization_time": "2025-04-07 20:00:12.113476"
+  },
+  {
+    "index": 2,
+    "timestamp": "2025-04-07 20:00:12.195209",
+    "transactions": [
+      {
+        "type": "APPEND_EVIDENCE",
+        "evidence_id": "EVI-25e0f7bad95aed6c",
+        "hypothesis_id": "HYP-7ccbca50baee608e",
+        "data": {
+          "evidence_type": "clinical_trial",
+          "summary": "Phase 3 trial with 500 patients shows 28% reduction in mortality",
+          "confidence": 0.85,
+          "effect_size": 0.28,
+          "p_value": 0.003,
+          "id": "EVI-25e0f7bad95aed6c"
+        },
+        "submitter_id": "researcher_bob",
+        "timestamp": "2025-04-07 20:00:12.113642",
+        "signature": "h3BV6e4pHWR26HdLxy6v05iZAsZfZwbOvkoqyEyLFHkaY9ZWfw9BjAHLiXl79zY9UU9TwEwKrA9Wp4FICSTXgOuGb44oZEajtH0Hoo15UuLz2RMHVjK6rSAdyuDPhlJ1dyirwSYm/SSdKMZJPzTNRYDeAuaXhhDOqKlPueKNcu1WMjIjA9Zer+KMsztV0CJ7z2qXOsEGxjzARlyHfkTO5UrnN7sPy6M7lUZALru+4yPYxa6ZfF8kkLKzD6z0oFHbLq6kB9tSvuIBROOs46/a37C96Sa4BUHFyw95/R681Z7MKDKFyg8LCL6tBbU23huHjYlTh78ub1VfKChKYTKd/A=="
+      },
+      {
+        "type": "ADD_POPULATION_INDICATOR",
+        "indicator_id": "POP-e65ac1a34100f484",
+        "data": {
+          "cohort_id": "TRIAL-001",
+          "markers": {
+            "age_range": "45-65",
+            "gender": "mixed",
+            "condition_severity": "moderate",
+            "previous_treatment": "none"
+          },
+          "id": "POP-e65ac1a34100f484"
+        },
+        "submitter_id": "data_analyst_carol",
+        "timestamp": "2025-04-07 20:00:12.153633",
+        "signature": "nCy6bBUNtwrvaHfrFOjXA3PIpgCRNR7kl41ZfJWNHOYA66WMJHyDp/Qurm5MrBvZtHai5Pc2i2chCNv4XRAiKSIyt9P5X4y0OT0zHden/Ja1ZoM9QnAX7FWafFK8rnePO7uKLKiX5qToOTg/e1u70ijb4yg0TUBuPgOr631huvXGSlAaRa6IG3zhAeySKTZooBHGwQsnVO0uNLt24fnfhiFDC41wFD7RwIZzF6YY++5x0Tn/D4cAUpIoFLDUL+BwtRGM312cSZ4KwJDkdn8G9oIuzjmukPYf+VfFfI8b6pYGLNLBRdaXJcsa2ll4yU1qWc/+wTfd0HcZvWCZQwyFSQ=="
+      }
+    ],
+    "previous_hash": "b12621fd9a3a492f6823b91d5785b09cb3aa510dd7c684935f26f7d5b3e8112e",
+    "hash": "71a274d60395c9f85f46cdf22c97c518f52363fa15625ecf7db41dea72119570",
+    "validations": [
+      {
+        "validator_id": "nih",
+        "signature": "BVU4Hw+oLvpSmGa57kcK4jlEOkiJOOOoGFCd6KugwHZaR2j3qYMHmokRbdEmp1L4A2pVEeOHszaNGuQDiKksHlzqxBgjNZV8QIuxJlti2/Zs3F71R2jKx2SPEJX9gI3guJLEPcev/JLi5TBw32BOj2b91o+1+yCIQ5WFMfmXqieEQbS+7uPMVxRoP0b9YfMp2hTwIU1faluabuCSCFJ/7XrjPX0qI9nBW4snov2u/ItC0b2GiXeD5T6WMQM9oDcjhySCafMHUv0ix+3GKhLeFKmxz9bSWUqyxPkDQ6xTxLss35eVpWmZSdIvsb3KX9sOlRwq7ARPDlPXyL6xIdYUZA==",
+        "timestamp": "2025-04-07 20:00:12.235456"
+      },
+      {
+        "validator_id": "pfizer_research",
+        "signature": "RFAyaSu7ZN7BoVhWfUOjT97sH77yHRayC0kgbcfs5HEZjyotPvWPeCJwWQU0BG0m1HYeygBDllGSS8s+DrTyO+phJVuMUfW3ww+oayeyYQ8tdyjCTKnHc3YYnhscImYPrNHNv6Y7vE5dOHHGhsVqG3kQCkJRNUJzhd8pL1x2BlqfkL9MbS3YaCKi6AUeVw5carSxIHidlt7V8DSnAfol1BNi3rOl8nl/Dnd2WkuNOCTkCTeXW6qQSC6TclsyA7h7J4RavWZNp662Rc2GqBbTRpOMqUbHIfdhk8mIlHjym7OCciv+zmrrSbFb1tu3Aslal82foQXa6FOr/p0AFEc/pw==",
+        "timestamp": "2025-04-07 20:00:12.275719"
+      }
+    ],
+    "finalized": true,
+    "finalization_time": "2025-04-07 20:00:12.276248"
+  }
+]

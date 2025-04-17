@@ -1,0 +1,24 @@
+# These owners will be the default owners for everything in the repo.
+# Unless a later match takes precedence, they will be requested for
+# review when someone opens a pull request.
+*       @yourusername
+
+# Specific module owners
+/app.py                    @yourusername
+/server.py                 @yourusername
+/bionlp/                   @yourusername
+/data/                     @yourusername
+/exchange/                 @yourusername
+/literature_search/        @yourusername
+/study_model/              @yourusername
+/qt_sections/              @yourusername
+
+# Build and CI/CD configuration
+/.github/workflows/        @yourusername
+/requirements*.txt         @yourusername
+/setup.py                  @yourusername
+/pyproject.toml            @yourusername
+
+# Documentation
+/*.md                      @yourusername
+/docs/                     @yourusername 

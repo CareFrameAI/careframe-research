@@ -1,0 +1,607 @@
+{
+    "study_types": {
+        "randomized_controlled_trial": {
+            "name": "Randomized Controlled Trial",
+            "description": "A study in which participants are randomly assigned to treatment or control groups",
+            "required_sections": [
+                "background",
+                "objectives",
+                "study_design",
+                "population",
+                "randomization",
+                "interventions",
+                "outcomes",
+                "statistical_analysis"
+            ],
+            "optional_sections": [
+                "safety",
+                "ethics",
+                "timeline",
+                "data_management",
+                "quality_control",
+                "references"
+            ]
+        },
+        "observational_study": {
+            "name": "Observational Study",
+            "description": "A study that observes participants without intervention",
+            "required_sections": [
+                "background",
+                "objectives",
+                "study_design",
+                "population",
+                "outcomes",
+                "statistical_analysis"
+            ],
+            "optional_sections": [
+                "data_collection",
+                "ethics",
+                "timeline",
+                "data_management",
+                "references"
+            ]
+        },
+        "case_control": {
+            "name": "Case-Control Study",
+            "description": "A study comparing participants with a specific outcome to those without",
+            "required_sections": [
+                "background",
+                "objectives",
+                "study_design",
+                "case_definition",
+                "control_definition",
+                "matching_criteria",
+                "outcomes",
+                "statistical_analysis"
+            ],
+            "optional_sections": [
+                "data_collection",
+                "ethics",
+                "timeline",
+                "references"
+            ]
+        },
+        "cohort_study": {
+            "name": "Cohort Study",
+            "description": "A study following groups of participants over time",
+            "required_sections": [
+                "background",
+                "objectives",
+                "study_design",
+                "population",
+                "exposure_assessment",
+                "outcomes",
+                "follow_up",
+                "statistical_analysis"
+            ],
+            "optional_sections": [
+                "data_collection",
+                "ethics",
+                "timeline",
+                "references"
+            ]
+        },
+        "cross_sectional": {
+            "name": "Cross-Sectional Study",
+            "description": "A study examining participants at a single point in time",
+            "required_sections": [
+                "background",
+                "objectives",
+                "study_design",
+                "population",
+                "outcomes",
+                "statistical_analysis"
+            ],
+            "optional_sections": [
+                "data_collection",
+                "ethics",
+                "timeline",
+                "references"
+            ]
+        },
+        "pragmatic_trial": {
+            "name": "Pragmatic Trial",
+            "description": "A trial designed to test interventions in real-life conditions",
+            "required_sections": [
+                "background",
+                "objectives",
+                "study_design",
+                "population",
+                "interventions",
+                "outcomes",
+                "implementation",
+                "statistical_analysis"
+            ],
+            "optional_sections": [
+                "cost_effectiveness",
+                "stakeholder_engagement",
+                "ethics",
+                "timeline",
+                "references"
+            ]
+        },
+        "adaptive_trial": {
+            "name": "Adaptive Trial",
+            "description": "A trial that allows modifications based on interim analyses",
+            "required_sections": [
+                "background",
+                "objectives",
+                "study_design",
+                "population",
+                "interventions",
+                "adaptation_rules",
+                "interim_analyses",
+                "outcomes",
+                "statistical_analysis"
+            ],
+            "optional_sections": [
+                "simulation_results",
+                "safety",
+                "ethics",
+                "timeline",
+                "references"
+            ]
+        },
+        "feasibility_study": {
+            "name": "Feasibility Study",
+            "description": "A study to assess the practicality of a proposed intervention or protocol",
+            "required_sections": [
+                "background",
+                "objectives",
+                "study_design",
+                "population",
+                "feasibility_outcomes",
+                "process_evaluation",
+                "statistical_analysis"
+            ],
+            "optional_sections": [
+                "progression_criteria",
+                "ethics",
+                "timeline",
+                "references"
+            ]
+        }
+    },
+    "section_templates": {
+        "background": {
+            "title": "Background",
+            "subsections": [
+                "literature_review",
+                "rationale",
+                "preliminary_data",
+                "significance"
+            ],
+            "prompts": [
+                "What is the current state of knowledge in this field?",
+                "What are the key gaps in current research?",
+                "What preliminary data supports this study?",
+                "Why is this study important for clinical practice?",
+                "What are the potential impacts on patient care?",
+                "How does this study build on previous research?",
+                "What is the theoretical framework for this study?"
+            ]
+        },
+        "objectives": {
+            "title": "Objectives",
+            "subsections": [
+                "primary_objective",
+                "secondary_objectives",
+                "hypotheses",
+                "exploratory_objectives"
+            ],
+            "prompts": [
+                "What is the primary research question (PICO format)?",
+                "What are the secondary research questions?",
+                "What are the specific hypotheses to be tested?",
+                "What is the null hypothesis?",
+                "What are the exploratory objectives?",
+                "How do these objectives align with the study design?",
+                "What is the minimum clinically important difference?"
+            ]
+        },
+        "study_design": {
+            "title": "Study Design",
+            "subsections": [
+                "design_overview",
+                "study_population",
+                "duration",
+                "endpoints"
+            ],
+            "prompts": [
+                "What is the overall study design?",
+                "What are the key study phases?",
+                "What is the study timeline?"
+            ]
+        },
+        "population": {
+            "title": "Study Population",
+            "subsections": [
+                "inclusion_criteria",
+                "exclusion_criteria",
+                "recruitment",
+                "sample_size"
+            ],
+            "prompts": [
+                "Who is eligible to participate?",
+                "How will participants be recruited?",
+                "How was the sample size determined?"
+            ]
+        },
+        "randomization": {
+            "title": "Randomization",
+            "subsections": [
+                "method",
+                "allocation_concealment",
+                "implementation"
+            ],
+            "prompts": [
+                "How will randomization be performed?",
+                "How will allocation be concealed?",
+                "Who will implement the randomization?"
+            ]
+        },
+        "interventions": {
+            "title": "Interventions",
+            "subsections": [
+                "intervention_details",
+                "control_group",
+                "compliance",
+                "concomitant_care"
+            ],
+            "prompts": [
+                "What are the study interventions?",
+                "How will they be administered?",
+                "How will compliance be monitored?"
+            ]
+        },
+        "outcomes": {
+            "title": "Outcome Measures",
+            "subsections": [
+                "primary_outcome",
+                "secondary_outcomes",
+                "safety_outcomes",
+                "measurement_methods"
+            ],
+            "prompts": [
+                "What is the primary outcome measure?",
+                "What are the secondary outcome measures?",
+                "How will outcomes be measured?"
+            ]
+        },
+        "statistical_analysis": {
+            "title": "Statistical Analysis",
+            "subsections": [
+                "analysis_population",
+                "statistical_methods",
+                "missing_data",
+                "interim_analyses"
+            ],
+            "prompts": [
+                "What statistical methods will be used?",
+                "How will missing data be handled?",
+                "Will there be interim analyses?"
+            ]
+        },
+        "safety": {
+            "title": "Safety Monitoring",
+            "subsections": [
+                "adverse_events",
+                "monitoring_plan",
+                "stopping_rules",
+                "reporting"
+            ],
+            "prompts": [
+                "How will adverse events be monitored?",
+                "What are the stopping rules?",
+                "How will safety data be reported?"
+            ]
+        },
+        "ethics": {
+            "title": "Ethical Considerations",
+            "subsections": [
+                "irb_approval",
+                "informed_consent",
+                "confidentiality",
+                "data_sharing"
+            ],
+            "prompts": [
+                "What ethical approvals are needed?",
+                "How will informed consent be obtained?",
+                "How will data privacy be maintained?"
+            ]
+        },
+        "timeline": {
+            "title": "Study Timeline",
+            "subsections": [
+                "preparation",
+                "recruitment",
+                "follow_up",
+                "analysis"
+            ],
+            "prompts": [
+                "What is the study schedule?",
+                "What are key milestones?",
+                "When will results be available?"
+            ]
+        },
+        "data_management": {
+            "title": "Data Management",
+            "subsections": [
+                "data_collection",
+                "quality_control",
+                "storage",
+                "security"
+            ],
+            "prompts": [
+                "How will data be collected?",
+                "How will data quality be ensured?",
+                "How will data be stored and secured?"
+            ]
+        },
+        "references": {
+            "title": "References",
+            "subsections": [
+                "citations",
+                "relevant_guidelines",
+                "related_studies"
+            ],
+            "prompts": [
+                "What are the key references?",
+                "What guidelines were followed?",
+                "What related studies exist?"
+            ]
+        },
+        "implementation": {
+            "title": "Implementation",
+            "subsections": [
+                "site_preparation",
+                "training",
+                "monitoring",
+                "fidelity_assessment"
+            ],
+            "prompts": [
+                "How will sites be prepared for the study?",
+                "What training will be provided to staff?",
+                "How will intervention fidelity be monitored?",
+                "What are the quality control measures?",
+                "How will protocol deviations be handled?",
+                "What support systems will be in place?"
+            ]
+        },
+        "adaptation_rules": {
+            "title": "Adaptation Rules",
+            "subsections": [
+                "interim_analyses",
+                "decision_rules",
+                "stopping_rules",
+                "sample_size_reassessment"
+            ],
+            "prompts": [
+                "What are the planned adaptation points?",
+                "What are the decision rules for adaptations?",
+                "How will type I error be controlled?",
+                "What are the stopping boundaries?",
+                "How will sample size be reassessed?",
+                "What simulation evidence supports the adaptation plan?"
+            ]
+        },
+        "feasibility_outcomes": {
+            "title": "Feasibility Outcomes",
+            "subsections": [
+                "recruitment_rates",
+                "retention_rates",
+                "adherence_measures",
+                "resource_requirements"
+            ],
+            "prompts": [
+                "What recruitment rate is considered feasible?",
+                "What retention rate is acceptable?",
+                "How will intervention adherence be measured?",
+                "What resources are needed for full trial?",
+                "What are the key progression criteria?",
+                "How will protocol feasibility be assessed?"
+            ]
+        },
+        "cost_effectiveness": {
+            "title": "Cost-Effectiveness",
+            "subsections": [
+                "cost_measurement",
+                "effectiveness_measures",
+                "economic_analysis",
+                "sensitivity_analyses"
+            ],
+            "prompts": [
+                "How will costs be measured and valued?",
+                "What is the primary economic outcome?",
+                "What perspective will the analysis take?",
+                "What time horizon will be used?",
+                "How will uncertainty be handled?",
+                "What sensitivity analyses are planned?"
+            ]
+        },
+        "stakeholder_engagement": {
+            "title": "Stakeholder Engagement",
+            "subsections": [
+                "patient_involvement",
+                "clinician_involvement",
+                "community_engagement",
+                "feedback_mechanisms"
+            ],
+            "prompts": [
+                "How are stakeholders involved in design?",
+                "How will stakeholder input be incorporated?",
+                "What are the engagement strategies?",
+                "How will feedback be collected and used?",
+                "How will results be disseminated?",
+                "What is the communication plan?"
+            ]
+        },
+        "quality_control": {
+            "title": "Quality Control",
+            "subsections": [
+                "monitoring_procedures",
+                "data_validation",
+                "quality_metrics",
+                "corrective_actions"
+            ],
+            "prompts": [
+                "What quality control procedures will be implemented?",
+                "How will data quality be monitored and validated?",
+                "What quality metrics will be tracked?",
+                "How will quality issues be identified and addressed?",
+                "What corrective action procedures are in place?",
+                "How will protocol compliance be ensured?"
+            ]
+        },
+        "data_collection": {
+            "title": "Data Collection",
+            "subsections": [
+                "collection_methods",
+                "data_sources",
+                "measurement_tools",
+                "quality_assurance"
+            ],
+            "prompts": [
+                "What methods will be used to collect data?",
+                "What are the primary data sources?",
+                "What measurement tools and instruments will be used?",
+                "How will data quality be ensured during collection?",
+                "What is the data collection schedule?",
+                "How will missing data be handled?"
+            ]
+        },
+        "matching_criteria": {
+            "title": "Matching Criteria",
+            "subsections": [
+                "matching_variables",
+                "matching_ratios",
+                "matching_procedures",
+                "validation"
+            ],
+            "prompts": [
+                "What variables will be used for matching?",
+                "What is the matching ratio?",
+                "How will matching be performed?",
+                "How will the quality of matching be assessed?"
+            ]
+        },
+        "progression_criteria": {
+            "title": "Progression Criteria",
+            "subsections": [
+                "feasibility_thresholds",
+                "success_criteria",
+                "stop_go_criteria",
+                "decision_process"
+            ],
+            "prompts": [
+                "What are the criteria for progression to a full trial?",
+                "What thresholds indicate feasibility?",
+                "What would trigger protocol modifications?",
+                "How will the progression decision be made?"
+            ]
+        },
+        "interim_analyses": {
+            "title": "Interim Analyses",
+            "subsections": [
+                "analysis_schedule",
+                "stopping_rules",
+                "decision_criteria",
+                "statistical_methods"
+            ],
+            "prompts": [
+                "When will interim analyses be conducted?",
+                "What are the stopping rules?",
+                "What decision criteria will be used?",
+                "How will type I error be controlled?"
+            ]
+        }
+    },
+    "special_sections": {
+        "case_definition": {
+            "title": "Case Definition",
+            "subsections": [
+                "diagnostic_criteria",
+                "case_identification",
+                "validation"
+            ],
+            "prompts": [
+                "How are cases defined?",
+                "How will cases be identified?",
+                "How will case status be validated?"
+            ]
+        },
+        "control_definition": {
+            "title": "Control Definition",
+            "subsections": [
+                "selection_criteria",
+                "matching_variables",
+                "source_population"
+            ],
+            "prompts": [
+                "How are controls defined?",
+                "How will controls be selected?",
+                "What is the source population?"
+            ]
+        },
+        "exposure_assessment": {
+            "title": "Exposure Assessment",
+            "subsections": [
+                "exposure_definition",
+                "measurement_methods",
+                "validation"
+            ],
+            "prompts": [
+                "How is exposure defined?",
+                "How will exposure be measured?",
+                "How will exposure data be validated?"
+            ]
+        },
+        "follow_up": {
+            "title": "Follow-up",
+            "subsections": [
+                "duration",
+                "procedures",
+                "retention_strategies"
+            ],
+            "prompts": [
+                "How long is the follow-up period?",
+                "What are the follow-up procedures?",
+                "How will participant retention be maximized?"
+            ]
+        },
+        "simulation_results": {
+            "title": "Simulation Results",
+            "subsections": [
+                "operating_characteristics",
+                "type_i_error",
+                "power_analysis",
+                "sample_size_distribution"
+            ],
+            "prompts": [
+                "What scenarios were simulated?",
+                "What are the type I error rates?",
+                "What is the power under different scenarios?",
+                "How variable is the final sample size?",
+                "What are the stopping probabilities?",
+                "How robust are the adaptation rules?"
+            ]
+        },
+        "process_evaluation": {
+            "title": "Process Evaluation",
+            "subsections": [
+                "implementation_assessment",
+                "mechanism_evaluation",
+                "context_analysis",
+                "barriers_facilitators"
+            ],
+            "prompts": [
+                "How will implementation be assessed?",
+                "What mechanisms will be evaluated?",
+                "How will context be analyzed?",
+                "What are potential barriers/facilitators?",
+                "How will findings inform future work?",
+                "What qualitative methods will be used?"
+            ]
+        }
+    }
+}

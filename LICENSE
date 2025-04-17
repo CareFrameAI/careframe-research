@@ -1,0 +1,56 @@
+# CareFrame Non-Commercial License
+
+Copyright (c) 2023-2025 CareFrame Technologies Corporation, Toronto, Canada
+All rights reserved. Developed by Sanjeev Kumar.
+
+## License Grant
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to use, copy, modify, and/or merge copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+1. **Non-Commercial Use Only**: The Software may not be used for commercial purposes without explicit permission from the copyright holders. Commercial purposes include, but are not limited to:
+   - Using the Software to provide services to customers for a fee
+   - Incorporating the Software into a commercial product
+   - Using the Software to generate revenue directly or indirectly
+
+2. **Attribution Requirement**: Any use of the Software must include appropriate attribution to CareFrame Technologies Corporation and Sanjeev Kumar as follows:
+   - Any software, publication, or product that incorporates or is derived from this Software must prominently display the text: "Developed using CareFrame by CareFrame Technologies Corporation, Toronto, Canada (© Sanjeev Kumar)"
+   - If the derived work has a user interface, the about or credits section must include the same attribution
+   - This attribution must be included in all documentation and must be maintained in all copies or substantial portions of the Software
+
+3. **No Warranty**: THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+4. **License Preservation**: This license must be included in all copies or substantial portions of the Software.
+
+## LLM Important Notice
+
+**IMPORTANT**: CareFrame is designed as a healthcare and research platform that may process sensitive data. Please note the following:
+
+- CareFrame v0.1 is EXPERIMENTAL and by default uses cloud-based LLM providers (Anthropic Claude, Google Gemini) when API keys are configured.
+- Using cloud-based LLMs means your data may be transmitted to third-party services.
+- For production use or when handling sensitive/PHI data, you MUST:
+  1. Use only local LLM models
+  2. Remove all external API keys
+  3. Configure appropriate security measures
+  4. Follow all applicable data privacy regulations (HIPAA, GDPR, etc.)
+
+The developers of CareFrame take NO RESPONSIBILITY for any data breaches, privacy violations, or other security issues that may arise from using cloud-based LLMs with sensitive data.
+
+## Third-Party Libraries Attribution
+
+CareFrame uses numerous open-source libraries, each with their own licenses:
+
+- PyQt6 (GPL-3.0)
+- FastAPI (MIT)
+- Anthropic Python SDK (MIT)
+- Google GenerativeAI SDK (Apache-2.0)
+- Pandas, NumPy, SciPy, Matplotlib (BSD-3-Clause)
+- Scikit-learn (BSD-3-Clause)
+- SpaCy, SciSpaCy (MIT)
+- CouchDB (Apache-2.0)
+- Cryptography (BSD/Apache-2.0)
+- Bootstrap Icons (MIT) - Copyright (c) 2019-2024 The Bootstrap Authors
+- Seaborn (BSD-3-Clause) - Copyright (c) 2012-2023, Michael L. Waskom
+- QAsync (BSD-2-Clause) - Copyright (c) 2016 Cabbage Development
+- Qt-Material (BSD-2-Clause) - Copyright (c) 2020, GCPDS
+
+A complete list of dependencies is available in the requirements.txt file. All third-party libraries are subject to their respective licenses, which must be respected in addition to this license. 

@@ -1,0 +1,42 @@
+# Add 'core' label to any changes in core files
+core:
+  - app.py
+  - server.py
+  - server_websocket/**/*
+
+# Add 'documentation' label to any changes in documentation files
+documentation:
+  - README.md
+  - CONTRIBUTING.md
+  - CHANGELOG.md
+  - docs/**/*
+  
+# Add 'ui' label to any changes in UI files
+ui:
+  - qt_sections/**/*
+  - qt_components/**/*
+  - qt_helpers/**/*
+  - qt_workers/**/*
+  
+# Add 'data' label to any changes in data-related files
+data:
+  - data/**/*
+  - datasets/**/*
+  
+# Add 'nlp' label to any changes in NLP-related files
+nlp:
+  - bionlp/**/*
+  - literature_search/**/*
+  
+# Add 'blockchain' label to any changes in blockchain-related files
+blockchain:
+  - exchange/**/*
+  - blockchain_data/**/*
+  
+# Add 'ci' label to any changes in CI/CD files
+ci:
+  - .github/workflows/**/*
+  - tests/**/*
+  - setup.py
+  - pyproject.toml
+  - requirements*.txt 

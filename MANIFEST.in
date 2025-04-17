@@ -1,0 +1,48 @@
+include LICENSE
+include README.md
+include CHANGELOG.md
+include CONTRIBUTING.md
+include SECURITY.md
+include requirements.txt
+include requirements-dev.txt
+include pyproject.toml
+include .pre-commit-config.yaml
+include CareFrame.svg
+
+# Include documentation
+recursive-include docs *
+
+# Include example files
+recursive-include examples *
+
+# Include test files
+recursive-include tests *
+
+# Include data files
+include data/*.json
+include datasets/*.tsv
+recursive-include icons *.png *.svg *.ico
+
+# Exclude development files
+exclude .gitignore
+exclude .github
+recursive-exclude .github *
+exclude .vscode
+recursive-exclude .vscode *
+exclude .idea
+recursive-exclude .idea *
+exclude __pycache__
+recursive-exclude __pycache__ *
+exclude *.pyc
+exclude .coverage
+exclude .pytest_cache
+recursive-exclude .pytest_cache *
+exclude htmlcov
+recursive-exclude htmlcov *
+
+# Exclude sensitive or private data
+exclude .credentials
+exclude .encryption_key
+exclude admin_keys.json
+recursive-exclude privacy *
+recursive-exclude private_data * 

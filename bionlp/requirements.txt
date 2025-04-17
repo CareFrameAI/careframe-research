@@ -1,0 +1,13 @@
+# Core dependencies
+typing-extensions<4.6.0,>=3.7.4.1
+pydantic<2.0.0,>=1.8.2
+spacy>=3.2.0,<3.3.0
+scispacy==0.5.3
+icd10>=1.0.0,<2.0.0
+pyspellchecker>=0.7.0,<0.8.0
+fastapi>=0.95.0,<0.100.0
+uvicorn>=0.22.0,<0.23.0
+
+# Note: The following packages need to be installed manually after the above dependencies:
+# https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.3/en_core_sci_lg-0.5.3.tar.gz
+# https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.3/en_core_sci_scibert-0.5.3.tar.gz 

@@ -1,0 +1,20 @@
+[
+  {
+    "type": "HYPOTHESIS",
+    "hypothesis_id": "c65d4752-2484-4968-a5cf-b95e1db8a7c8",
+    "title": "Admission Type and Length of Hospital Stay",
+    "description": "No description",
+    "submitter": "SanjeevKumar@careframe.ai",
+    "team_info": {
+      "team_id": "78ec6937d7051438c09feef192007704",
+      "team_name": "CareFrameAdmin",
+      "organization_id": "78ec6937d7051438c09feef1920075ef"
+    },
+    "timestamp": "2025-04-17T01:01:39.407068",
+    "metadata": {
+      "status": "rejected",
+      "created_at": "2025-04-17T00:44:06.073845"
+    },
+    "signature": "SnSv3Pu+YdtzFhsWS/J6e1JYYWFePv8HKu6J52s6j2M="
+  }
+]
