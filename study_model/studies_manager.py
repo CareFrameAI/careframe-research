@@ -1474,78 +1474,77 @@ class StudiesManager:
             Tuple of (encoded_series, encoding_mapping) or (None, None) if failed
         """
         study = self.get_active_study()
-        if not study:
+        if not study or not study.available_datasets:
             return None, None
             
-        # Find the dataset
-        for dataset in study.available_datasets:
-            # Handle different data structures
-            if isinstance(dataset, dict):
-                name = dataset.get('name')
-                if name == dataset_name:
-                    df = dataset.get('data')
-                    if df is None or column_name not in df.columns:
-                        return None, None
-                        
-                    # Get current metadata or initialize empty dict
-                    metadata = dataset.get('metadata', {})
-                    
-                    # Initialize encodings dict if it doesn't exist
-                    if 'encodings' not in metadata:
-                        metadata['encodings'] = {}
-                        
-                    # Create mapping if not provided
-                    if custom_mapping is None:
-                        unique_values = sorted(df[column_name].unique())
-                        mapping = {val: i for i, val in enumerate(unique_values)}
-                    else:
-                        mapping = custom_mapping
-                        
-                    # Store both forward and reverse mappings
-                    metadata['encodings'][column_name] = {
-                        'value_to_int': mapping,
-                        'int_to_value': {i: val for val, i in mapping.items()},
-                        'encoded_at': datetime.now().isoformat()
-                    }
-                    
-                    # Update metadata
-                    dataset['metadata'] = metadata
-                    
-                    # Create encoded series
-                    encoded_series = df[column_name].map(mapping)
-                    
-                    # Update timestamp
-                    study.updated_at = datetime.now().isoformat()
-                    
-                    return encoded_series, mapping
+        # Iterate through datasets to find the matching one
+        for i, dataset in enumerate(study.available_datasets):
+            df = None
+            name = ""
+            metadata = None
+            
+            # Handle different storage formats
+            if isinstance(dataset, pd.DataFrame):
+                # Find the name from metadata if stored separately
+                dataset_info = study.datasets_metadata.get(dataset_name)
+                if dataset_info:
+                    name = dataset_name
+                    df = dataset
+                    metadata = dataset_info.get('metadata')
+                # Fallback to iterating available_datasets structure if not found in metadata
+                elif hasattr(study, 'datasets_metadata') and dataset_name in study.datasets_metadata:
+                   name = dataset_name
+                   df = dataset
+                   metadata = study.datasets_metadata[dataset_name].get('metadata')
             elif isinstance(dataset, tuple) and len(dataset) >= 2:
                 name = dataset[0]
                 if name == dataset_name:
-                    # Try to get metadata from tuple structure
-                    metadata = None
+                    if len(dataset) > 1 and isinstance(dataset[1], pd.DataFrame):
+                        df = dataset[1]
                     if len(dataset) > 2:
-                        metadata = dataset[2] if len(dataset) > 2 else None
-                    if metadata is not None:
-                        # Update existing metadata if provided 
-                        updated_metadata = metadata.copy()
-                        if custom_mapping:
-                            updated_metadata.update(custom_mapping)
-                        
-                        # Create updated dataset entry
-                        updated_dataset = (name, df, updated_metadata)
-                        
-                        # Replace the dataset
-                        study.available_datasets[i] = updated_dataset
-                        
-                        # Create encoded series
-                        encoded_series = df[column_name].map(mapping)
-                        
-                        # Update timestamp
-                        study.updated_at = datetime.now().isoformat()
-                        
-                        return encoded_series, mapping
+                        metadata = dataset[2]
             # Add handling for other types here if needed
-        
+
+            # Proceed if we found the dataset by name
+            if name == dataset_name and df is not None:
+                if column_name not in df.columns:
+                    return None, None # Column not found
+                
+                # Determine mapping: custom or auto-detected
+                if custom_mapping:
+                    mapping = custom_mapping
+                else:
+                    # Auto-detect order based on unique values
+                    unique_values = sorted(df[column_name].unique())
+                    mapping = {val: idx for idx, val in enumerate(unique_values)}
+                    
+                # Create the encoded series
+                encoded_series = df[column_name].map(mapping)
+                
+                # Prepare metadata update
+                updated_metadata = metadata.copy() if metadata else {}
+                if 'encodings' not in updated_metadata:
+                    updated_metadata['encodings'] = {}
+                updated_metadata['encodings'][column_name] = {
+                    'type': 'ordinal',
+                    'value_to_int': mapping,
+                    'int_to_value': {v: k for k, v in mapping.items()}
+                }
+                
+                # Update the dataset in the study list
+                if isinstance(study.available_datasets[i], pd.DataFrame):
+                     # If stored as DataFrame, update metadata separately
+                     if study.datasets_metadata is None: study.datasets_metadata = {}
+                     study.datasets_metadata[dataset_name] = {'metadata': updated_metadata}
+                elif isinstance(study.available_datasets[i], tuple):
+                    # Update the tuple with new metadata
+                     study.available_datasets[i] = (name, df, updated_metadata)
+                
+                # Update timestamp
+                study.updated_at = datetime.now().isoformat()
+                
+                return encoded_series, mapping
+                
         # Dataset not found
         return None, None
     

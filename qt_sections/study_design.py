@@ -1784,9 +1784,6 @@ class StudyDesignSection(QWidget):
             preview_layout.addWidget(preview_text)
             layout.addWidget(preview_group)
 
-            # After successful load and populate_study_data call:
-            if selected_doc:
-                self.populate_study_data(selected_doc['data'])
             # Update preview when selection changes
             def update_preview():
                 selected_rows = table.selectedItems()
