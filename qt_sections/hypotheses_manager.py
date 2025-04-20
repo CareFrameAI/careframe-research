@@ -682,7 +682,13 @@ class HypothesisDetailView(QWidget):
             form_layout = QFormLayout()
             
             # Display test type
-            test_type = hypothesis_data['test_results'].get('test', 'Unknown Test')
+            # First check for 'expected_test' from generation, then 'test_results'
+            test_type = hypothesis_data.get('expected_test') 
+            if not test_type and 'test_results' in hypothesis_data and hypothesis_data['test_results']:
+                test_type = hypothesis_data['test_results'].get('test', 'Unknown Test')
+            elif not test_type:
+                 test_type = 'Unknown Test' # Default if neither is found
+            
             test_label = QLabel(test_type)
             test_label.setStyleSheet("font-weight: bold;")
             form_layout.addRow("Test Type:", test_label)

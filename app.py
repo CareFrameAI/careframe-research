@@ -17,6 +17,7 @@ from data.cleaning.clean import DataCleaningWidget
 from data.evaluation.evaluate import TestEvaluationWidget
 from data.joins.join import DataJoinWidget
 from data.mediation.mediate import MediationAnalysisWidget
+from data.preprocess.preprocess import DataPreprocessingWidget
 from data.selection.select import DataTestingWidget
 from data.sensitivity.sensitivity import SensitivityAnalysisWidget
 from data.filtering.filter import DataFilteringWidget
@@ -995,6 +996,10 @@ class MainWindow(QMainWindow):
         self.data_collection_widget = DataCollectionWidget()
         self.main_content_widget.addWidget(self.data_collection_widget)
         
+        # Assuming self.studies_manager holds the StudiesManager instance
+        self.preprocessing_widget = DataPreprocessingWidget(self.studies_manager)
+        self.main_content_widget.addWidget(self.preprocessing_widget)
+
         self.data_reshape_widget = DataReshapeWidget()
         self.main_content_widget.addWidget(self.data_reshape_widget)
         
@@ -1149,6 +1154,7 @@ class MainWindow(QMainWindow):
             {"text": "Design", "icon": "diagram-3", "callback": self.show_study_design_section, "group": "Study"},
             {"text": "Documentation", "icon": "project-diagram", "callback": self.show_study_documentation_section, "group": "Study"},
             {"text": "Sources", "icon": "shuffle", "callback": self.show_data_collection_section, "group": "Data"},
+            {"text": "Preprocess", "icon": "shuffle", "callback": self.show_data_preprocessing_section, "group": "Data"},
             {"text": "Clean", "icon": "shuffle", "callback": self.show_data_cleaning_section, "group": "Data"},
             {"text": "Filter", "icon": "shuffle", "callback": self.show_data_filtering_section, "group": "Data"},
             {"text": "Merge", "icon": "shuffle", "callback": self.show_data_joining_section, "group": "Data"},
@@ -1288,6 +1294,7 @@ class MainWindow(QMainWindow):
             ],
             "Data": [
                 {"text": "Sources", "callback": self.show_data_collection_section, "icon": "gear-wide-connected"},
+                {"text": "Preprocess", "callback": self.show_data_preprocessing_section, "icon": "tools"},
                 {"text": "Clean", "callback": self.show_data_cleaning_section, "icon": "brush"},
                 {"text": "Merge", "callback": self.show_data_joining_section, "icon": "intersect"},
                 {"text": "Filter", "callback": self.show_data_filtering_section, "icon": "funnel"},
@@ -2070,6 +2077,9 @@ class MainWindow(QMainWindow):
     def show_data_collection_section(self):
         self.main_content_widget.setCurrentWidget(self.data_collection_widget)
 
+    def show_data_preprocessing_section(self):
+        self.main_content_widget.setCurrentWidget(self.preprocessing_widget)
+
     def show_data_reshaping_section(self):
         self.main_content_widget.setCurrentWidget(self.data_reshape_widget)
 
@@ -2538,6 +2548,7 @@ class MainWindow(QMainWindow):
             'sensitivity': self.show_analysis_sensitivity_section,
             'interpret': self.show_analysis_interpretation_section,
             'sources': self.show_data_collection_section,
+            'preprocessing': self.show_data_preprocessing_section,
             'cleaning': self.show_data_cleaning_section,
             'reshaping': self.show_data_reshaping_section,
             'filtering': self.show_data_filtering_section,
@@ -2596,6 +2607,7 @@ class MainWindow(QMainWindow):
             "claims": self.show_literature_evidence_section,
             "data": self.show_data_collection_section,
             "sources": self.show_data_collection_section,
+            "preprocessing": self.show_data_preprocessing_section,
             "cleaning": self.show_data_cleaning_section,
             "reshaping": self.show_data_reshaping_section,
             "filtering": self.show_data_filtering_section,

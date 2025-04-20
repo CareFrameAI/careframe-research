@@ -325,10 +325,6 @@ class LLMDatabase:
         conn.close()
         return results
         
-    def get_recent_calls(self, limit=100):
-        """Alias for get_calls for backward compatibility"""
-        return self.get_calls(limit=limit)
-        
     def clear_calls(self):
         """Delete all records from the llm_calls table"""
         conn = sqlite3.connect(self.db_path)
@@ -882,7 +878,7 @@ class LlmManagerWidget(QWidget):
         close_button.clicked.connect(dialog.accept)
         
         # Show dialog
-        dialog.exec_()
+        dialog.exec()
 
 # Create a wrapper for LLM calls
 def check_phi_and_process(model, prompt, process_llm_call):

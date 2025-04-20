@@ -210,218 +210,12 @@ def track_llm_call(func):
         output_tokens = None
         status = "Error"
         error_msg = ""
-        phi_scanned = True  # Default to True - we always scan
+        phi_scanned = True
         phi_found_count = 0
         phi_types = {}
         phi_redacted = False
         response = None
-
-        try:
-            # --- Prepare Prompt & Scan ---
-            prompt_text_for_scan = ""
-            if isinstance(prompt_arg, str):
-                prompt_preview = (prompt_arg[:100] + '...') if len(prompt_arg) > 100 else prompt_arg
-                prompt_text_for_scan = prompt_arg
-                full_prompt = prompt_arg
-            elif isinstance(prompt_arg, dict) or isinstance(prompt_arg, list):
-                 # Attempt to serialize dict/list for preview/scan
-                 try:
-                     prompt_str = json.dumps(prompt_arg)
-                     prompt_preview = (prompt_str[:100] + '...') if len(prompt_str) > 100 else prompt_str
-                     prompt_text_for_scan = prompt_str
-                     full_prompt = prompt_str
-                 except Exception:
-                     prompt_preview = f"<{type(prompt_arg).__name__} object>"
-                     full_prompt = prompt_preview
-            else:
-                 prompt_preview = f"<{type(prompt_arg).__name__} object>"
-                 full_prompt = prompt_preview
-
-            # Scan for PHI - get detailed info
-            phi_prompt_alert, phi_prompt_count, phi_prompt_types, _ = scan_for_phi(prompt_text_for_scan)
-            
-            # --- Check token limits if we can estimate them ---
-            # Get the model's token limits
-            token_limits = None
-            if hasattr(llm_config, 'get_token_limits'):
-                token_limits = llm_config.get_token_limits(model)
-            
-            # Adjust max_tokens parameter if it exists and exceeds the output limit
-            if token_limits and 'max_tokens' in kwargs and kwargs['max_tokens'] > token_limits['output']:
-                print(f"Warning: Reducing max_tokens from {kwargs['max_tokens']} to {token_limits['output']} for model {model}")
-                kwargs['max_tokens'] = token_limits['output']
-            
-            # For pre-tokenization checks, we can use a rough estimate
-            # Common approximation: 1 token ≈ 4 chars for English text
-            if token_limits and prompt_text_for_scan:
-                estimated_tokens = len(prompt_text_for_scan) // 4
-                if estimated_tokens > token_limits['input']:
-                    err_msg = f"Estimated input tokens ({estimated_tokens}) exceeds model limit ({token_limits['input']})"
-                    print(f"Error: {err_msg}")
-                    
-                    # Emit signal with error - adjusted for new parameters
-                    if llm_tracker_signals.call_logged:
-                        llm_tracker_signals.call_logged.emit(
-                            timestamp, model, 0.0, estimated_tokens, 0,
-                            "Error", err_msg, prompt_preview, "Token limit exceeded",
-                            phi_scanned, phi_prompt_count, phi_prompt_types, False
-                        )
-                    
-                    # Save to database if enabled
-                    if llm_database is not None and hasattr(llm_config, 'save_calls') and llm_config.save_calls:
-                        try:
-                            llm_database.save_call(
-                                timestamp, model, 0.0, estimated_tokens, 0,
-                                "Error", err_msg, full_prompt, "Token limit exceeded", 
-                                phi_scanned, phi_prompt_count, phi_prompt_types, False
-                            )
-                        except Exception as db_error:
-                            print(f"Error saving LLM call error to database: {str(db_error)}")
-                    
-                    # Raise exception rather than making the API call
-                    raise ValueError(err_msg)
-
-            # --- Execute Original Function ---
-            response = await func(*args, **kwargs)
-
-            # --- Process Response ---
-            duration = time.time() - start_time
-            status = "Success"
-
-            # Extract text response for preview/scan
-            response_text = ""
-            if isinstance(response, str):
-                response_text = response
-            elif hasattr(response, 'text'): # Handle Gemini response object
-                response_text = response.text
-            elif hasattr(response, 'content') and isinstance(response.content, list) and len(response.content) > 0 and hasattr(response.content[0], 'text'): # Handle Anthropic response object
-                 response_text = response.content[0].text
-            else:
-                # Try to serialize if it's a dict/list likely from JSON mode
-                try:
-                    response_text = json.dumps(response)
-                except Exception:
-                    response_text = f"<{type(response).__name__} object>"
-
-            response_preview = (response_text[:100] + '...') if len(response_text) > 100 else response_text
-            full_response = response_text
-            
-            # Scan response for PHI
-            phi_response_alert, phi_response_count, phi_response_types, _ = scan_for_phi(response_text)
-            
-            # Combine PHI findings
-            phi_found_count = phi_prompt_count + phi_response_count
-            phi_types = phi_prompt_types.copy()
-            for k, v in phi_response_types.items():
-                if k in phi_types:
-                    phi_types[k] += v
-                else:
-                    phi_types[k] = v
-
-            # --- Extract Usage/Tokens (API specific) ---
-            if model.startswith("claude") and hasattr(response, 'usage'):
-                input_tokens = getattr(response.usage, 'input_tokens', None)
-                output_tokens = getattr(response.usage, 'output_tokens', None)
-            elif model.startswith("gemini") and hasattr(response, 'usage_metadata'):
-                input_tokens = getattr(response.usage_metadata, 'prompt_token_count', None)
-                # Sum output tokens across candidates if applicable
-                candidates_tokens = getattr(response.usage_metadata, 'candidates_token_count', None)
-                total_usage = getattr(response.usage_metadata, 'total_token_count', None)
-                if candidates_tokens is not None:
-                    output_tokens = candidates_tokens
-                elif total_usage is not None and input_tokens is not None:
-                     output_tokens = total_usage - input_tokens # Estimate if only total is available
-
-            # We return the actual response object from the decorated function
-            actual_return_value = response
-
-            # If the original function was expected to return a specific format (like just text)
-            # We need to extract that *after* getting usage data from the full response object
-            if func.__name__ in ['call_claude_async', 'call_gemini_async', 'call_claude_with_image_async']: # Functions expected to return str
-                if hasattr(response, 'content') and isinstance(response.content, list) and len(response.content) > 0 and hasattr(response.content[0], 'text'):
-                    actual_return_value = response.content[0].text
-                elif hasattr(response, 'text'):
-                    actual_return_value = response.text
-                # else keep actual_return_value as the raw response if text extraction failed
-
-
-            elif func.__name__ in ['call_claude_async_json', 'call_gemini_async_json']: # Functions expected to return str (raw json)
-                 if hasattr(response, 'content') and isinstance(response.content, list) and len(response.content) > 0 and hasattr(response.content[0], 'text'):
-                    actual_return_value = response.content[0].text
-                 elif hasattr(response, 'text'):
-                    actual_return_value = response.text # Gemini might return cleaned text here already
-
-            # --- Emit Signal and Save if needed ---
-            if llm_tracker_signals.call_logged:
-                llm_tracker_signals.call_logged.emit(
-                    timestamp, model, duration, input_tokens or 0, output_tokens or 0,
-                    status, error_msg, prompt_preview, response_preview,
-                    phi_scanned, phi_found_count, phi_types, phi_redacted
-                )
-                
-            # --- Save to database if enabled ---
-            if llm_database is not None and hasattr(llm_config, 'save_calls') and llm_config.save_calls:
-                try:
-                    llm_database.save_call(
-                        timestamp, model, duration, input_tokens or 0, output_tokens or 0,
-                        status, error_msg, full_prompt, full_response, 
-                        phi_scanned, phi_found_count, phi_types, phi_redacted
-                    )
-                except Exception as db_error:
-                    print(f"Error saving LLM call to database: {str(db_error)}")
-
-            return actual_return_value # Return what the original function returned or the extracted value
-
-        except Exception as e:
-            duration = time.time() - start_time
-            status = "Error"
-            error_msg = str(e)
-            traceback_str = traceback.format_exc()
-            print(f"LLM Call Error ({model}): {error_msg}\n{traceback_str}")
-            response_preview = f"Error: {error_msg}"
-            full_response = response_preview
-
-            # --- Emit Signal on Error ---
-            if llm_tracker_signals.call_logged:
-                llm_tracker_signals.call_logged.emit(
-                    timestamp, model, duration, input_tokens or 0, output_tokens or 0,
-                    status, error_msg, prompt_preview, response_preview,
-                    phi_scanned, phi_found_count, phi_types, phi_redacted
-                )
-                
-            # --- Save error to database if enabled ---
-            if llm_database is not None and hasattr(llm_config, 'save_calls') and llm_config.save_calls:
-                try:
-                    llm_database.save_call(
-                        timestamp, model, duration, input_tokens or 0, output_tokens or 0,
-                        status, error_msg, full_prompt, full_response, 
-                        phi_scanned, phi_found_count, phi_types, phi_redacted
-                    )
-                except Exception as db_error:
-                    print(f"Error saving LLM call error to database: {str(db_error)}")
-                    
-            raise # Re-raise the exception
-
-    @functools.wraps(func)
-    def sync_wrapper(*args, **kwargs):
-        # Similar logic for synchronous functions
-        start_time = time.time()
-        timestamp = datetime.now()
-        model = kwargs.get('model') or (args[1] if len(args) > 1 and isinstance(args[1], str) else 'unknown')
-        prompt_arg = kwargs.get('prompt') or (args[0] if args else None)
-        prompt_preview = "N/A"
-        full_prompt = "N/A"
-        response_preview = "N/A"
-        full_response = "N/A"
-        input_tokens = None
-        output_tokens = None
-        status = "Error"
-        error_msg = ""
-        phi_scanned = True  # Default to True - we always scan
-        phi_found_count = 0
-        phi_types = {}
-        phi_redacted = False
-        response = None
+        actual_return_value = None # Initialize return value holder
 
         try:
             # --- Prepare Prompt & Scan ---
@@ -463,67 +257,65 @@ def track_llm_call(func):
                 estimated_tokens = len(prompt_text_for_scan) // 4
                 if estimated_tokens > token_limits['input']:
                     err_msg = f"Estimated input tokens ({estimated_tokens}) exceeds model limit ({token_limits['input']})"
-                    print(f"Error: {err_msg}")
-                    
-                    # Emit signal with error - adjusted for new parameters
-                    if llm_tracker_signals.call_logged:
-                        llm_tracker_signals.call_logged.emit(
-                            timestamp, model, 0.0, estimated_tokens, 0,
-                            "Error", err_msg, prompt_preview, "Token limit exceeded",
-                            phi_scanned, phi_prompt_count, phi_prompt_types, False
-                        )
-                    
-                    # Save to database if enabled
-                    if llm_database is not None and hasattr(llm_config, 'save_calls') and llm_config.save_calls:
-                        try:
-                            llm_database.save_call(
-                                timestamp, model, 0.0, estimated_tokens, 0, 
-                                "Error", err_msg, full_prompt, "Token limit exceeded",
-                                phi_scanned, phi_prompt_count, phi_prompt_types, False
-                            )
-                        except Exception as db_error:
-                            print(f"Error saving LLM call error to database: {str(db_error)}")
-                    
-                    # Raise exception rather than making the API call
-                    raise ValueError(err_msg)
+                    raise ValueError(err_msg) # Raise error immediately
 
             # --- Execute Original Function ---
-            response = func(*args, **kwargs) # Call sync function directly
+            response = await func(*args, **kwargs) # This is where call_gemini_async_json is called
 
-            # --- Process Response ---
+            # --- Process Response (Modified Logic) ---
             duration = time.time() - start_time
             status = "Success"
 
-            # Extract text response for preview/scan
+            # Extract text response for preview/scan/log - HANDLE DICT CASE
             response_text = ""
-            if isinstance(response, str):
+            actual_return_value = response # Default return value is the raw response
+
+            if isinstance(response, dict):
+                # If the response IS a dict, likely from a JSON mode call
+                try:
+                    response_text = json.dumps(response) # Serialize for logging
+                    # No need to modify actual_return_value, it's already the dict
+                    print("DEBUG (Decorator): Response is a dict, serializing for log.") # Debug
+                except Exception:
+                    response_text = "<Dict object - serialization failed>"
+                    print("DEBUG (Decorator): Response is a dict, but serialization failed.") # Debug
+            elif isinstance(response, str):
+                # If it's already a string
                 response_text = response
-            elif hasattr(response, 'text'):
+                actual_return_value = response # Ensure return is the string
+                print("DEBUG (Decorator): Response is a string.") # Debug
+            elif hasattr(response, 'text') and response.text: # Handle Gemini GenerateContentResponse
                 response_text = response.text
-            elif hasattr(response, 'content') and isinstance(response.content, list) and len(response.content) > 0 and hasattr(response.content[0], 'text'):
-                 response_text = response.content[0].text
+                actual_return_value = response.text # Return only text for standard calls
+                print("DEBUG (Decorator): Response has .text attribute.") # Debug
+            elif hasattr(response, 'content') and isinstance(response.content, list) and len(response.content) > 0 and hasattr(response.content[0], 'text'): # Handle Anthropic Message
+                response_text = response.content[0].text
+                actual_return_value = response.content[0].text # Return only text for standard calls
+                print("DEBUG (Decorator): Response has .content[0].text attribute.") # Debug
             else:
-                 try:
-                     response_text = json.dumps(response)
-                 except Exception:
-                     response_text = f"<{type(response).__name__} object>"
+                # Fallback for other object types
+                try:
+                    response_text = str(response)
+                    print(f"DEBUG (Decorator): Response is type {type(response)}, using str().") # Debug
+                except Exception:
+                    response_text = f"<Object type {type(response).__name__} - str() failed>"
+                    print(f"DEBUG (Decorator): Response is type {type(response)}, str() failed.") # Debug
+                # Keep actual_return_value as the original response object
 
             response_preview = (response_text[:100] + '...') if len(response_text) > 100 else response_text
-            full_response = response_text
-            
+            full_response = response_text # Log the (potentially serialized) response
+
             # Scan response for PHI
             phi_response_alert, phi_response_count, phi_response_types, _ = scan_for_phi(response_text)
-            
+
             # Combine PHI findings
             phi_found_count = phi_prompt_count + phi_response_count
             phi_types = phi_prompt_types.copy()
             for k, v in phi_response_types.items():
-                if k in phi_types:
-                    phi_types[k] += v
-                else:
-                    phi_types[k] = v
+                phi_types[k] = phi_types.get(k, 0) + v
 
-            # --- Extract Usage/Tokens (API specific) ---
+            # --- Extract Usage/Tokens (API specific - from original response object) ---
+            # This needs to access the *original* response object, not the text
             if model.startswith("claude") and hasattr(response, 'usage'):
                 input_tokens = getattr(response.usage, 'input_tokens', None)
                 output_tokens = getattr(response.usage, 'output_tokens', None)
@@ -535,70 +327,272 @@ def track_llm_call(func):
                     output_tokens = candidates_tokens
                 elif total_usage is not None and input_tokens is not None:
                      output_tokens = total_usage - input_tokens
+            # Add extraction logic for local LLM response if it provides usage data
+            elif isinstance(response, type) and response.__name__ == 'LocalLLMResponse': # Check type name
+                 if hasattr(response, 'usage'):
+                     input_tokens = getattr(response.usage, 'input_tokens', None)
+                     output_tokens = getattr(response.usage, 'output_tokens', None)
 
-            # Similar logic for extracting the actual return value based on func name
-            actual_return_value = response
-            if func.__name__ in ['call_claude_sync', 'call_gemini_sync', 'call_claude_with_image_sync']:
-                if hasattr(response, 'content') and isinstance(response.content, list) and len(response.content) > 0 and hasattr(response.content[0], 'text'):
-                    actual_return_value = response.content[0].text
-                elif hasattr(response, 'text'):
-                    actual_return_value = response.text
 
-            elif func.__name__ in ['call_claude_sync_json', 'call_gemini_sync_json']:
-                 if hasattr(response, 'content') and isinstance(response.content, list) and len(response.content) > 0 and hasattr(response.content[0], 'text'):
-                    actual_return_value = response.content[0].text
-                 elif hasattr(response, 'text'):
-                    actual_return_value = response.text
+            # --- Determine the actual return value based on the decorated function ---
+            # This logic might need adjustment based on *specific expectations* of each decorated function.
+            # For now, we assume JSON functions expect dicts, others expect text.
+            if func.__name__.endswith('_json'):
+                 # If the original response wasn't a dict, try parsing the text now
+                 if not isinstance(actual_return_value, dict):
+                     try:
+                         actual_return_value = json.loads(response_text)
+                     except json.JSONDecodeError:
+                         print(f"Warning (Decorator): Failed to parse response text as JSON for {func.__name__}")
+                         # Keep actual_return_value as the text/object in case of error
+            # For non-JSON functions, actual_return_value should already be text or the raw object
 
-            # --- Emit Signal ---
+            # --- Emit Signal and Save if needed --- 
+            # ... (keep existing signal emission and database saving logic) ...
             if llm_tracker_signals.call_logged:
-                llm_tracker_signals.call_logged.emit(
-                    timestamp, model, duration, input_tokens or 0, output_tokens or 0,
-                    status, error_msg, prompt_preview, response_preview,
-                    phi_scanned, phi_found_count, phi_types, phi_redacted
-                )
-                
-            # --- Save to database if enabled ---
+                 llm_tracker_signals.call_logged.emit(
+                     timestamp, model, duration, input_tokens or 0, output_tokens or 0,
+                     status, error_msg, prompt_preview, response_preview,
+                     phi_scanned, phi_found_count, phi_types, phi_redacted
+                 )
+            
             if llm_database is not None and hasattr(llm_config, 'save_calls') and llm_config.save_calls:
-                try:
-                    llm_database.save_call(
-                        timestamp, model, duration, input_tokens or 0, output_tokens or 0,
-                        status, error_msg, full_prompt, full_response,
-                        phi_scanned, phi_found_count, phi_types, phi_redacted
-                    )
-                except Exception as db_error:
-                    print(f"Error saving LLM call to database: {str(db_error)}")
+                 try:
+                     llm_database.save_call(
+                         timestamp, model, duration, input_tokens or 0, output_tokens or 0,
+                         status, error_msg, full_prompt, full_response,
+                         phi_scanned, phi_found_count, phi_types, phi_redacted
+                     )
+                 except Exception as db_error:
+                     print(f"Error saving LLM call to database: {str(db_error)}")
 
+
+            # --- Return the determined actual_return_value ---
             return actual_return_value
 
         except Exception as e:
+            # ... (keep existing error handling logic) ...
             duration = time.time() - start_time
             status = "Error"
             error_msg = str(e)
+            # Check if error happened before prompt scanning
+            if 'prompt_text_for_scan' not in locals():
+                prompt_preview="<Error before prompt processing>"
+                full_prompt=prompt_preview
+                phi_prompt_count=0
+                phi_prompt_types={}
+
             traceback_str = traceback.format_exc()
             print(f"LLM Call Error ({model}): {error_msg}\n{traceback_str}")
             response_preview = f"Error: {error_msg}"
             full_response = response_preview
 
-            # --- Emit Signal on Error ---
+            # Emit Signal on Error
             if llm_tracker_signals.call_logged:
                  llm_tracker_signals.call_logged.emit(
-                    timestamp, model, duration, input_tokens or 0, output_tokens or 0,
-                    status, error_msg, prompt_preview, response_preview,
-                    phi_scanned, phi_found_count, phi_types, phi_redacted
-                )
-                
-            # --- Save error to database if enabled ---
+                     timestamp, model, duration, input_tokens or 0, output_tokens or 0,
+                     status, error_msg, prompt_preview, response_preview,
+                     phi_scanned, phi_found_count, phi_types, phi_redacted
+                 )
+
+            # Save error to database if enabled
             if llm_database is not None and hasattr(llm_config, 'save_calls') and llm_config.save_calls:
+                 try:
+                     llm_database.save_call(
+                         timestamp, model, duration, input_tokens or 0, output_tokens or 0,
+                         status, error_msg, full_prompt, full_response,
+                         phi_scanned, phi_found_count, phi_types, phi_redacted
+                     )
+                 except Exception as db_error:
+                     print(f"Error saving LLM call error to database: {str(db_error)}")
+
+            raise # Re-raise the exception
+
+    @functools.wraps(func)
+    def sync_wrapper(*args, **kwargs):
+        # Apply similar logic to the synchronous wrapper
+        start_time = time.time()
+        timestamp = datetime.now()
+        # ... (rest of initial setup for sync_wrapper - keep existing) ...
+        model = kwargs.get('model') or (args[1] if len(args) > 1 and isinstance(args[1], str) else 'unknown')
+        prompt_arg = kwargs.get('prompt') or (args[0] if args else None)
+        prompt_preview = "N/A"
+        full_prompt = "N/A"
+        response_preview = "N/A"
+        full_response = "N/A"
+        input_tokens = None
+        output_tokens = None
+        status = "Error"
+        error_msg = ""
+        phi_scanned = True
+        phi_found_count = 0
+        phi_types = {}
+        phi_redacted = False
+        response = None
+        actual_return_value = None
+
+        try:
+            # ... (Prepare Prompt & Scan, Token Limit Checks - sync version - keep existing) ...
+            prompt_text_for_scan = ""
+            if isinstance(prompt_arg, str):
+                prompt_preview = (prompt_arg[:100] + '...') if len(prompt_arg) > 100 else prompt_arg
+                prompt_text_for_scan = prompt_arg
+                full_prompt = prompt_arg
+            elif isinstance(prompt_arg, dict) or isinstance(prompt_arg, list):
+                 try:
+                     prompt_str = json.dumps(prompt_arg)
+                     prompt_preview = (prompt_str[:100] + '...') if len(prompt_str) > 100 else prompt_str
+                     prompt_text_for_scan = prompt_str
+                     full_prompt = prompt_str
+                 except Exception:
+                     prompt_preview = f"<{type(prompt_arg).__name__} object>"
+                     full_prompt = prompt_preview
+            else:
+                prompt_preview = f"<{type(prompt_arg).__name__} object>"
+                full_prompt = prompt_preview
+
+            phi_prompt_alert, phi_prompt_count, phi_prompt_types, _ = scan_for_phi(prompt_text_for_scan)
+
+            token_limits = None
+            if hasattr(llm_config, 'get_token_limits'):
+                token_limits = llm_config.get_token_limits(model)
+            if token_limits and 'max_tokens' in kwargs and kwargs['max_tokens'] > token_limits['output']:
+                 kwargs['max_tokens'] = token_limits['output']
+            if token_limits and prompt_text_for_scan:
+                estimated_tokens = len(prompt_text_for_scan) // 4
+                if estimated_tokens > token_limits['input']:
+                    err_msg = f"Estimated input tokens ({estimated_tokens}) exceeds model limit ({token_limits['input']})"
+                    raise ValueError(err_msg)
+
+            # --- Execute Original Function ---
+            response = func(*args, **kwargs) # Call sync function
+
+            # --- Process Response (Modified Logic for sync) ---
+            duration = time.time() - start_time
+            status = "Success"
+            response_text = ""
+            actual_return_value = response
+
+            # Handle different response types
+            if isinstance(response, dict):
                 try:
-                    llm_database.save_call(
-                        timestamp, model, duration, input_tokens or 0, output_tokens or 0,
-                        status, error_msg, full_prompt, full_response,
-                        phi_scanned, phi_found_count, phi_types, phi_redacted
-                    )
-                except Exception as db_error:
-                    print(f"Error saving LLM call error to database: {str(db_error)}")
-                    
+                    response_text = json.dumps(response)
+                    print("DEBUG (Decorator Sync): Response is a dict, serializing for log.") # Debug
+                    # actual_return_value is already the dict
+                except Exception:
+                    response_text = "<Dict object - serialization failed>"
+                    print("DEBUG (Decorator Sync): Response is a dict, but serialization failed.") # Debug
+            elif isinstance(response, str):
+                response_text = response
+                actual_return_value = response
+                print("DEBUG (Decorator Sync): Response is a string.") # Debug
+            elif hasattr(response, 'text') and response.text:
+                response_text = response.text
+                actual_return_value = response.text
+                print("DEBUG (Decorator Sync): Response has .text.") # Debug
+            elif hasattr(response, 'content') and isinstance(response.content, list) and len(response.content) > 0 and hasattr(response.content[0], 'text'):
+                response_text = response.content[0].text
+                actual_return_value = response.content[0].text
+                print("DEBUG (Decorator Sync): Response has .content[0].text.") # Debug
+            else:
+                try:
+                    response_text = str(response)
+                    print(f"DEBUG (Decorator Sync): Response is type {type(response)}, using str().") # Debug
+                except Exception:
+                    response_text = f"<Object type {type(response).__name__} - str() failed>"
+                    print(f"DEBUG (Decorator Sync): Response is type {type(response)}, str() failed.") # Debug
+
+
+            response_preview = (response_text[:100] + '...') if len(response_text) > 100 else response_text
+            full_response = response_text
+
+            # Scan response text
+            phi_response_alert, phi_response_count, phi_response_types, _ = scan_for_phi(response_text)
+            phi_found_count = phi_prompt_count + phi_response_count
+            phi_types = phi_prompt_types.copy()
+            for k, v in phi_response_types.items():
+                 phi_types[k] = phi_types.get(k, 0) + v
+
+            # --- Extract Usage/Tokens (sync version) ---
+            if model.startswith("claude") and hasattr(response, 'usage'):
+                 input_tokens = getattr(response.usage, 'input_tokens', None)
+                 output_tokens = getattr(response.usage, 'output_tokens', None)
+            elif model.startswith("gemini") and hasattr(response, 'usage_metadata'):
+                 input_tokens = getattr(response.usage_metadata, 'prompt_token_count', None)
+                 candidates_tokens = getattr(response.usage_metadata, 'candidates_token_count', None)
+                 total_usage = getattr(response.usage_metadata, 'total_token_count', None)
+                 if candidates_tokens is not None: output_tokens = candidates_tokens
+                 elif total_usage is not None and input_tokens is not None: output_tokens = total_usage - input_tokens
+            elif isinstance(response, type) and response.__name__ == 'LocalLLMResponse':
+                 if hasattr(response, 'usage'):
+                     input_tokens = getattr(response.usage, 'input_tokens', None)
+                     output_tokens = getattr(response.usage, 'output_tokens', None)
+
+
+            # --- Final check on return value type (sync version) ---
+            if func.__name__.endswith('_json'):
+                 if not isinstance(actual_return_value, dict):
+                     try:
+                         actual_return_value = json.loads(response_text)
+                     except json.JSONDecodeError:
+                         print(f"Warning (Decorator Sync): Failed final JSON parse for {func.__name__}")
+                         actual_return_value = response_text # Return text on failure
+
+
+            # --- Emit Signal and Save (sync version) ---
+            # ... (keep existing signal/db logic) ...
+            if llm_tracker_signals.call_logged:
+                 llm_tracker_signals.call_logged.emit(
+                     timestamp, model, duration, input_tokens or 0, output_tokens or 0,
+                     status, error_msg, prompt_preview, response_preview,
+                     phi_scanned, phi_found_count, phi_types, phi_redacted
+                 )
+            if llm_database is not None and hasattr(llm_config, 'save_calls') and llm_config.save_calls:
+                 try:
+                     llm_database.save_call(
+                         timestamp, model, duration, input_tokens or 0, output_tokens or 0,
+                         status, error_msg, full_prompt, full_response,
+                         phi_scanned, phi_found_count, phi_types, phi_redacted
+                     )
+                 except Exception as db_error:
+                     print(f"Error saving LLM call to database: {str(db_error)}")
+
+
+            return actual_return_value
+
+        except Exception as e:
+            # ... (rest of sync error handling logic - similar to async) ...
+            duration = time.time() - start_time
+            status = "Error"
+            error_msg = str(e)
+            if 'prompt_text_for_scan' not in locals():
+                 prompt_preview="<Error before prompt processing>"
+                 full_prompt=prompt_preview
+                 phi_prompt_count=0
+                 phi_prompt_types={}
+
+            traceback_str = traceback.format_exc()
+            print(f"LLM Sync Call Error ({model}): {error_msg}\n{traceback_str}")
+            response_preview = f"Error: {error_msg}"
+            full_response = response_preview
+
+            if llm_tracker_signals.call_logged:
+                 llm_tracker_signals.call_logged.emit(
+                     timestamp, model, duration, input_tokens or 0, output_tokens or 0,
+                     status, error_msg, prompt_preview, response_preview,
+                     phi_scanned, phi_found_count, phi_types, phi_redacted
+                 )
+
+            if llm_database is not None and hasattr(llm_config, 'save_calls') and llm_config.save_calls:
+                 try:
+                     llm_database.save_call(
+                         timestamp, model, duration, input_tokens or 0, output_tokens or 0,
+                         status, error_msg, full_prompt, full_response,
+                         phi_scanned, phi_found_count, phi_types, phi_redacted
+                     )
+                 except Exception as db_error:
+                     print(f"Error saving LLM sync call error to database: {str(db_error)}")
+
             raise
 
     # Return the correct wrapper based on whether the original function is async
@@ -1447,81 +1441,91 @@ async def call_llm_async_json(prompt: Union[str, Dict], model: Optional[str] = N
     Uses configured default JSON model if 'model' is not provided.
     Returns a parsed dictionary.
     """
-    # Use provided model or default JSON model from config
     target_model = model or llm_config.default_json_model
-
     prompt = convert_numpy_types(prompt)
 
     for attempt in range(1, max_retries + 1):
         raw_response_text = ""
+        response = None
+        parsed_json_response = None # Variable to hold the final dictionary
+
         try:
             if attempt > 1: await asyncio.sleep(0.1 * (2 ** (attempt - 1)))
 
-            # Check if we should use a local LLM
+            # --- Select and Call LLM ---
             if LOCAL_LLM_CONFIG["enabled"] and is_local_model(target_model):
-                local_model = target_model
-                if target_model.startswith("local-"):
-                    # Map model name to actual local model name (strip prefix)
-                    local_model = target_model[6:]
-                elif target_model in LOCAL_LLM_CONFIG["models"].values():
-                    # Already a bare model name
-                    pass
-                else:
-                    # Use default JSON model
+                # ... (local LLM logic - should already return raw text via raw_response_text) ...
+                local_model = target_model # simplified
+                if target_model.startswith("local-"): local_model = target_model[6:]
+                elif not target_model in LOCAL_LLM_CONFIG["models"].values():
                     local_model = LOCAL_LLM_CONFIG["models"]["json"]
-                
-                # Ensure JSON instructions are included
+
                 if isinstance(prompt, str) and "JSON format" not in prompt and "JSON output" not in prompt:
-                    prompt += "\n\nIMPORTANT: Format your entire response as a valid JSON object, ensuring it can be parsed with json.loads(). Only output the JSON object itself, with no surrounding text or markdown."
-                
-                # Call local LLM
-                response = await call_local_llm_async(prompt, model=local_model, **kwargs)
-                if hasattr(response, 'content') and isinstance(response.content, list) and len(response.content) > 0 and hasattr(response.content[0], 'text'):
-                    raw_response_text = response.content[0].text
+                     prompt += "\\n\\nIMPORTANT: Format your entire response as a valid JSON object, ensuring it can be parsed with json.loads(). Only output the JSON object itself, with no surrounding text or markdown."
+
+                local_response_obj = await call_local_llm_async(prompt, model=local_model, **kwargs)
+                if hasattr(local_response_obj, 'content') and isinstance(local_response_obj.content, list) and len(local_response_obj.content) > 0 and hasattr(local_response_obj.content[0], 'text'):
+                    raw_response_text = local_response_obj.content[0].text
                 else:
-                    raw_response_text = str(response)
+                    raw_response_text = str(local_response_obj) # Fallback
+
             elif target_model.startswith("claude"):
-                # Use decorated function
+                # ... (Claude logic - should already return raw text via raw_response_text) ...
                 response = await call_claude_async_json(prompt, model=target_model, **kwargs)
-                # Extract text
                 if hasattr(response, 'content') and isinstance(response.content, list) and len(response.content) > 0 and hasattr(response.content[0], 'text'):
                     raw_response_text = response.content[0].text
                 else: raise ValueError("Unexpected Claude JSON response format")
 
             elif target_model.startswith("gemini"):
-                 # Use decorated function
                  response = await call_gemini_async_json(prompt, model=target_model, **kwargs)
-                 # Extract text
-                 if hasattr(response, 'text'):
-                     raw_response_text = response.text
-                     # Clean Gemini JSON output which might have markdown ```json ... ```
-                     raw_response_text = raw_response_text.strip()
-                     if raw_response_text.startswith("```json") and raw_response_text.endswith("```"):
-                        raw_response_text = raw_response_text[7:-3].strip()
-                     elif raw_response_text.startswith("```") and raw_response_text.endswith("```"):
-                         raw_response_text = raw_response_text[3:-3].strip()
-                 else: raise ValueError("Unexpected Gemini JSON response format")
-
+                 # --- Check if Gemini returned a dict directly ---
+                 if isinstance(response, dict):
+                     print("DEBUG: Gemini returned a dict directly.") # Debug
+                     parsed_json_response = response # Use the dict directly
+                 else:
+                     # --- If not a dict, proceed with text/parts extraction ---
+                     if hasattr(response, 'text') and response.text:
+                         raw_response_text = response.text
+                         print(f"DEBUG: Gemini JSON received via .text: {raw_response_text[:100]}...") # Debug
+                     elif hasattr(response, 'parts') and response.parts:
+                         json_parts = [part.text for part in response.parts if hasattr(part, 'text')]
+                         if json_parts:
+                             raw_response_text = "".join(json_parts)
+                             print(f"DEBUG: Gemini JSON reconstructed from parts: {raw_response_text[:100]}...") # Debug
+                         else:
+                             print(f"DEBUG: Gemini response had parts but no text content.")
+                             raise ValueError("Unexpected Gemini JSON response structure (parts without text)")
+                     else:
+                         print(f"DEBUG: Could not find text or parts in Gemini JSON response. Response object: {response}") # Debug
+                         raise ValueError("Unexpected Gemini JSON response format (no text or parts attribute)")
             else:
                 raise ValueError(f"Unsupported model for JSON: {target_model}")
 
-            # Clean potential markdown JSON formatting from local LLM response
-            if LOCAL_LLM_CONFIG["enabled"] and is_local_model(target_model):
-                raw_response_text = raw_response_text.strip()
-                if raw_response_text.startswith("```json") and raw_response_text.endswith("```"):
-                    raw_response_text = raw_response_text[7:-3].strip()
-                elif raw_response_text.startswith("```") and raw_response_text.endswith("```"):
-                    raw_response_text = raw_response_text[3:-3].strip()
+            # --- Parsing Step (only if we got raw text) ---
+            if parsed_json_response is None: # Only parse if we didn't get a dict directly
+                 # Clean text before parsing (common issue with Gemini/Local)
+                 if target_model.startswith("gemini") or (LOCAL_LLM_CONFIG["enabled"] and is_local_model(target_model)):
+                    raw_response_text = raw_response_text.strip()
+                    if raw_response_text.startswith("```json") and raw_response_text.endswith("```"):
+                        raw_response_text = raw_response_text[7:-3].strip()
+                    elif raw_response_text.startswith("```") and raw_response_text.endswith("```"):
+                        raw_response_text = raw_response_text[3:-3].strip()
 
-            # Parse JSON response - moved parsing here
-            return json.loads(raw_response_text)
+                 print(f"DEBUG: Attempting to parse JSON: '{raw_response_text[:200]}...'") # Debug
+                 parsed_json_response = json.loads(raw_response_text) # Parse the extracted text
+
+            # --- Return the parsed dictionary ---
+            return parsed_json_response
 
         except json.JSONDecodeError as e:
-            print(f"JSON Decode Error attempt {attempt} for model {target_model}: {e}. Response: '{raw_response_text[:200]}...'")
+            print(f"JSON Decode Error attempt {attempt} for model {target_model}: {e}. Raw text: '{raw_response_text[:200]}...'") # Log the raw text
+            if response and not isinstance(response, dict): # Log response object if it wasn't the dict
+                 print(f"DEBUG: Full response object on JSON error: {response}")
             if attempt == max_retries:
-                raise ValueError(f"Invalid JSON response after {max_retries} attempts (model: {target_model}): {str(e)}. Last response: '{raw_response_text[:500]}'") from e
+                raise ValueError(f"Invalid JSON response after {max_retries} attempts (model: {target_model}): {str(e)}. Last raw text: '{raw_response_text[:500]}'") from e
         except Exception as e:
             print(f"LLM JSON call attempt {attempt} failed for model {target_model}: {e}")
+            traceback.print_exc()
             if attempt == max_retries:
                 raise
 
