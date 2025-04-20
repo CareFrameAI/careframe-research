@@ -1,0 +1,234 @@
+{
+    "patterns": [
+        {
+            "name": "Patient Name",
+            "regex": "\\b(Mr\\.?|Mrs\\.?|Ms\\.?|Dr\\.?|Prof\\.?|Sir\\.?|Madam\\.?|Miss\\.?|Master\\.?)\\s+[A-Z][a-z]+\\s+[A-Z][a-z]+\\b",
+            "category": "PHI",
+            "replacement": "[PATIENT_NAME]"
+        },
+        {
+            "name": "Medical Record Number",
+            "regex": "\\b(MRN|Medical Record Number)[:\\s]*\\d{6,10}\\b",
+            "category": "PHI",
+            "replacement": "[MEDICAL_RECORD_NUMBER]"
+        },
+        {
+            "name": "Date of Birth",
+            "regex": "\\b(DOB|Date of Birth)[:\\s]*(0[1-9]|1[0-2])[\\/\\-](0[1-9]|[12][0-9]|3[01])[\\/\\-](19|20)\\d\\d\\b",
+            "category": "PHI",
+            "replacement": "[DATE_OF_BIRTH]"
+        },
+        {
+            "name": "Health Insurance Claim Number",
+            "regex": "\\b(HICN|Health Insurance Claim Number)[:\\s]*[A-Z0-9]{8,12}\\b",
+            "category": "PHI",
+            "replacement": "[HEALTH_INSURANCE_CLAIM_NUMBER]"
+        },
+        {
+            "name": "Social Security Number",
+            "regex": "\\b(SSN|Social Security Number)[:\\s]*\\d{3}-\\d{2}-\\d{4}\\b",
+            "category": "PHI",
+            "replacement": "[SSN]"
+        },
+        {
+            "name": "Phone Number",
+            "regex": "\\b(\\+?1[-.\\s]?)?\\(?\\d{3}\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}\\b",
+            "category": "PHI",
+            "replacement": "[PHONE_NUMBER]"
+        },
+        {
+            "name": "Email Address",
+            "regex": "[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+",
+            "category": "PHI",
+            "replacement": "[EMAIL_ADDRESS]"
+        },
+        {
+            "name": "Street Address",
+            "regex": "\\b\\d{1,5}\\s+([A-Z][a-z]*\\s)+(Street|St\\.|Avenue|Ave\\.|Boulevard|Blvd\\.|Road|Rd\\.|Lane|Ln\\.|Drive|Dr\\.)\\b",
+            "category": "PHI",
+            "replacement": "[STREET_ADDRESS]"
+        },
+        {
+            "name": "ZIP Code",
+            "regex": "\\b\\d{5}(?:[-\\s]\\d{4})?\\b",
+            "category": "PHI",
+            "replacement": "[ZIP_CODE]"
+        },
+        {
+            "name": "ICD-10 Code",
+            "regex": "\\b[A-TV-Z][0-9][A-Z0-9](?:\\.?[A-Z0-9]{0,4})\\b",
+            "category": "Medical Code",
+            "replacement": "[ICD10_CODE]"
+        },
+        {
+            "name": "CPT Code",
+            "regex": "\\b(\\d{4}[0-9AB]|\\d{3}[0-9AB]\\w)\\b",
+            "category": "Medical Code",
+            "replacement": "[CPT_CODE]"
+        },
+        {
+            "name": "Lab Test Codes",
+            "regex": "\\b(HbA1c|CBC|BMP|CMP|LFTs|TSH|PT/INR|PTT|ESR|CRP|PSA)\\b",
+            "category": "Lab Test",
+            "replacement": "[LAB_TEST_CODE]"
+        },
+        {
+            "name": "Hospital Name",
+            "regex": "\\b([A-Z][a-z]+\\s)+(Hospital|Medical Center|Clinic|Health Center)\\b",
+            "category": "PHI",
+            "replacement": "[HOSPITAL_NAME]"
+        },
+        {
+            "name": "Room Number",
+            "regex": "\\b(Room|Rm\\.?|Bed)\\s*\\d{1,4}\\b",
+            "category": "PHI",
+            "replacement": "[ROOM_NUMBER]"
+        },
+        {
+            "name": "License Number",
+            "regex": "\\b(License|Lic\\.?|Registration|Reg\\.?|Certification|Cert\\.?|DEA)\\s*#?\\s*[A-Z0-9]{5,10}\\b",
+            "category": "PHI",
+            "replacement": "[LICENSE_NUMBER]"
+        },
+        {
+            "name": "Device Serial Number",
+            "regex": "\\b(Device|Implant|Serial Number|SN|S/N)[:\\s]*[A-Z0-9]{6,12}\\b",
+            "category": "PHI",
+            "replacement": "[DEVICE_SERIAL_NUMBER]"
+        },
+        {
+            "name": "Table Note Codes",
+            "regex": "\\b(Table\\s*\\d+\\s*Note\\s*[A-Z]?\\d*)\\b",
+            "category": "Table Note",
+            "replacement": "[TABLE_NOTE_CODE]"
+        },
+        {
+            "name": "Biometric Identifiers",
+            "regex": "\\b(Fingerprint|Voiceprint|Retina Scan|Iris Scan|Facial Recognition)\\b",
+            "category": "PHI",
+            "replacement": "[BIOMETRIC_IDENTIFIER]"
+        },
+        {
+            "name": "Social Insurance Number",
+            "regex": "\\b\\d{3}[ \\-]?\\d{3}[ \\-]?\\d{3}\\b",
+            "category": "PHI",
+            "replacement": "[SIN]"
+        },
+        {
+            "name": "Health Card Number (Ontario)",
+            "regex": "\\b\\d{4}[ \\-]?\\d{3}[ \\-]?\\d{3}[ \\-]?[A-Z]{2}\\b",
+            "category": "PHI",
+            "replacement": "[HEALTH_CARD_NUMBER_ON]"
+        },
+        {
+            "name": "Health Card Number (British Columbia)",
+            "regex": "\\b\\d{10}\\b",
+            "category": "PHI",
+            "replacement": "[HEALTH_CARD_NUMBER_BC]"
+        },
+        {
+            "name": "Health Card Number (Alberta)",
+            "regex": "\\b\\d{9}\\b",
+            "category": "PHI",
+            "replacement": "[HEALTH_CARD_NUMBER_AB]"
+        },
+        {
+            "name": "Postal Code",
+            "regex": "\\b[ABCEGHJKLMNPRSTVXY]\\d[ABCEGHJ-NPRSTV-Z][ \\-]?\\d[ABCEGHJ-NPRSTV-Z]\\d\\b",
+            "category": "PHI",
+            "replacement": "[POSTAL_CODE]"
+        },
+        {
+            "name": "Province",
+            "regex": "\\b(Ontario|ON|Quebec|QC|Nova Scotia|NS|New Brunswick|NB|Manitoba|MB|British Columbia|BC|Prince Edward Island|PE|Saskatchewan|SK|Alberta|AB|Newfoundland and Labrador|NL|Northwest Territories|NT|Yukon|YT|Nunavut|NU)\\b",
+            "category": "PHI",
+            "replacement": "[PROVINCE]"
+        },
+        {
+            "name": "Health Facility Name",
+            "regex": "\\b([A-Z][a-z]+\\s)+(Hospital|Medical Center|Clinic|Health Centre|Health Center|Centre Hospitalier)\\b",
+            "category": "PHI",
+            "replacement": "[HEALTH_FACILITY_NAME]"
+        },
+        {
+            "name": "Health Facility Name (French)",
+            "regex": "\\b([A-Z][a-z]+\\s)+(Hôpital|Clinique|Centre de Santé|Centre Hospitalier)\\b",
+            "category": "PHI",
+            "replacement": "[HEALTH_FACILITY_NAME]"
+        },
+        {
+            "name": "Canadian Phone Number",
+            "regex": "\\b(\\+?1[ \\-]?)?\\(?\\d{3}\\)?[ \\-]?\\d{3}[ \\-]?\\d{4}\\b",
+            "category": "PHI",
+            "replacement": "[PHONE_NUMBER]"
+        },
+        {
+            "name": "Driver's License Number (Ontario)",
+            "regex": "\\b([A-Z]\\d{4}-\\d{5}-\\d{5})\\b",
+            "category": "PHI",
+            "replacement": "[DRIVERS_LICENSE_NUMBER_ON]"
+        },
+        {
+            "name": "Canadian Passport Number",
+            "regex": "\\b[A-Z]{2}[\\d]{6}\\b",
+            "category": "PHI",
+            "replacement": "[PASSPORT_NUMBER]"
+        },
+        {
+            "name": "First Nations Band Number",
+            "regex": "\\b\\d{3}[ \\-]?\\d{3}[ \\-]?\\d{3}\\b",
+            "category": "PHI",
+            "replacement": "[FIRST_NATIONS_BAND_NUMBER]"
+        },
+        {
+            "name": "Canadian Bank Account Number",
+            "regex": "\\b\\d{5}-\\d{3}-\\d{7,12}\\b",
+            "category": "Sensitive",
+            "replacement": "[BANK_ACCOUNT_NUMBER]"
+        },
+        {
+            "name": "Canadian Credit Card Number",
+            "regex": "\\b(?:4\\d{3}|5[1-5]\\d{2}|6(?:011|5\\d{2})|3[47]\\d{2})[ \\-]?\\d{4}[ \\-]?\\d{4}[ \\-]?\\d{4}\\b",
+            "category": "Sensitive",
+            "replacement": "[CREDIT_CARD_NUMBER]"
+        },
+        {
+            "name": "Canadian Date Formats",
+            "regex": "\\b(0?[1-9]|[12][0-9]|3[01])[ \\-/](0?[1-9]|1[012])[ \\-/](19|20)?\\d{2}\\b",
+            "category": "PII",
+            "replacement": "[DATE]"
+        },
+        {
+            "name": "Health Card Number (Quebec)",
+            "regex": "\\b[\\d]{4} [\\d]{4} [\\d]{4}\\b",
+            "category": "PHI",
+            "replacement": "[HEALTH_CARD_NUMBER_QC]"
+        }
+    ],
+    "malicious_patterns": [
+        {
+            "name": "SQL Injection",
+            "regex": "(?i)(\\bUNION\\b.*\\bSELECT\\b|\\bDROP\\b\\s+\\bTABLE\\b|--|;|\\bINSERT\\b\\s+\\bINTO\\b|\\bDELETE\\b\\s+\\bFROM\\b)",
+            "category": "Malicious",
+            "score": 5
+        },
+        {
+            "name": "Code Injection",
+            "regex": "<\\s*script[^>]*>.*?<\\s*/\\s*script>",
+            "category": "Malicious",
+            "score": 5
+        },
+        {
+            "name": "Whitespace Abuse",
+            "regex": "(\\S)\\s{10,}(\\S)",
+            "category": "Malicious",
+            "score": 2
+        },
+        {
+            "name": "Obfuscated JavaScript",
+            "regex": "(?i)(eval\\s*\\(|function\\s*\\(|window\\.|document\\.)",
+            "category": "Malicious",
+            "score": 5
+        }
+    ]
+}
