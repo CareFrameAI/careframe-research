@@ -8,8 +8,13 @@ Includes malicious content detection and inappropriate language filtering
 import re
 import json
 import os
+import sys
 from typing import Dict, List, Union, Optional, Set, Tuple
 import logging
+
+# Check Python version
+if sys.version_info < (3, 7):
+    raise RuntimeError("This module requires Python 3.7 or higher")
 
 # Import required libraries (assuming they're installed)
 try:

@@ -10,8 +10,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false  # Continue with other versions if one fails
       matrix:
-        python-version: [3.9, 3.10]
+        python-version: ["3.9", "3.10"]  # Explicitly quoted versions
 
     steps:
     - uses: actions/checkout@v3

@@ -1,4 +1,10 @@
 # privacy/phi_manager.py
+import sys
+
+# Check Python version
+if sys.version_info < (3, 7):
+    raise RuntimeError("This module requires Python 3.7 or higher")
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QGroupBox, QCheckBox,
     QComboBox, QLabel, QSlider, QPushButton, QSpinBox, QTabWidget,
