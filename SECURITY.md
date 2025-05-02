@@ -1,34 +1,18 @@
 # Security Policy
 
-## Supported Versions
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
-
 ## Reporting a Vulnerability
 
-We take the security of CareFrame seriously. If you believe you've found a security vulnerability, please follow these steps:
+The CareFrame team takes security vulnerabilities seriously. We appreciate your efforts to responsibly disclose your findings.
 
-1. **Do not disclose the vulnerability publicly**
-2. **Email us at security@example.com** with details about the vulnerability
-3. Include the following information:
-   - Type of vulnerability
-   - Full path of the affected file(s)
-   - Steps to reproduce
-   - Potential impact
+## How to Report a Vulnerability
 
-The team will acknowledge your report within 48 hours and provide an estimated timeline for a fix. We'll keep you updated on the progress.
+Please report security vulnerabilities by contacting the CareFrame team directly through the following methods:
 
-## Security Measures
+1. Open an issue in our GitHub repository
+2. Contact us through our website contact form
 
-CareFrame implements several security measures:
+Please provide detailed information about the vulnerability to help us understand and address the issue effectively.
 
-- Sensitive data encryption
-- Input validation and sanitization
-- Authentication and authorization controls
-- Regular security updates
+## Security Updates
 
-## Thank You
-
-We value the work of security researchers and appreciate your efforts to improve the security of our project. 
+We will acknowledge receipt of your vulnerability report as soon as possible and keep you informed as we work to address the issue.
