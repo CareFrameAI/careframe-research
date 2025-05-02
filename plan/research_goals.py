@@ -822,29 +822,56 @@ class ResearchPlanningWidget(QSplitter):
         if not datasets_info:
             QMessageBox.warning(self, "Error", "No valid datasets available")
             return None
-        
+
+        # Get existing hypotheses related to this objective
+        existing_hypotheses_text = []
+        if hasattr(self.research_manager, 'get_hypotheses_for_objective'):
+            existing_hypotheses = self.research_manager.get_hypotheses_for_objective(objective_node.node_data['id'])
+            for hyp_node in existing_hypotheses:
+                if hasattr(hyp_node, 'hypothesis_config') and hasattr(hyp_node.hypothesis_config, 'text'):
+                    existing_hypotheses_text.append(hyp_node.hypothesis_config.text)
+        elif hasattr(objective_node, 'child_hypotheses'): # Fallback using node connections
+            for hyp_node in objective_node.child_hypotheses:
+                 if hasattr(hyp_node, 'hypothesis_config') and hasattr(hyp_node.hypothesis_config, 'text'):
+                    existing_hypotheses_text.append(hyp_node.hypothesis_config.text)
+
+        print(f"Existing hypotheses for objective '{objective_node.objective_config.text}': {existing_hypotheses_text}")
+
         # Generate the hypothesis and select dataset using LLM
         try:
             # Prepare prompt for LLM
             objective_text = objective_node.objective_config.text
             datasets_json = json.dumps(datasets_info, indent=2)
-            
-            prompt = f"""Given a research objective and available datasets, generate a testable hypothesis and identify which dataset is most suitable for testing it.
+            existing_hypotheses_list_str = "\n".join([f"- {h}" for h in existing_hypotheses_text]) if existing_hypotheses_text else "None"
+
+            prompt = f"""Given a research objective, a list of existing hypotheses for that objective, and available datasets, generate the *next* testable hypothesis or the first one if none exist, and identify the most suitable dataset for testing it.
 
 Research Objective: "{objective_text}"
+
+Existing Hypotheses for this Objective:
+{existing_hypotheses_list_str}
 
 Available Datasets:
 {datasets_json}
 
 Your task:
-1. Generate a specific, testable hypothesis related to the research objective
-2. Select the most appropriate dataset for testing this hypothesis
-3. Explain why this dataset is the best choice
-4. Identify what independent and dependent variables should be used from this dataset
+1. Analyze the research objective (e.g., "Test outcomes at months 3, 6, 9"). Identify *all* distinct sub-hypotheses implied by the objective's text or description.
+2. Compare the *full list* of implied sub-hypotheses with the 'Existing Hypotheses' provided.
+3. Determine the *next logical sub-hypothesis* that is implied by the objective but is *not* present in the 'Existing Hypotheses' list.
+   - Prioritize based on any apparent sequence (e.g., time points like 3, 6, 9; components listed).
+   - If no existing hypotheses match any implied sub-hypotheses, generate the first logical one (e.g., for 'months 3, 6, 9', the first might be 'month 9' or 'month 3' depending on the desired order).
+   - If all implied sub-hypotheses from the objective are already present in the 'Existing Hypotheses' list, state that no new hypothesis is needed.
+4. If a new sub-hypothesis is identified for generation:
+   a. Formulate it as a specific, testable hypothesis statement.
+   b. Select the most appropriate dataset for testing it.
+   c. Explain why this dataset is the best choice.
+   d. Identify the dependent (outcome) and independent (predictors) variables from this dataset.
+   e. Provide formal null and alternative hypothesis statements.
 
 Response format (JSON):
+If a new hypothesis is generated:
 {{
-  "hypothesis": "The specific hypothesis statement",
+  "hypothesis": "The specific hypothesis statement (e.g., Test outcome at month 6)",
   "dataset_name": "name of the most appropriate dataset",
   "explanation": "brief explanation of why this dataset is appropriate",
   "variables": {{
@@ -852,10 +879,16 @@ Response format (JSON):
     "predictors": ["list of independent/predictor variable names"]
   }},
   "null_hypothesis": "formal null hypothesis statement",
-  "alternative_hypothesis": "formal alternative hypothesis statement"
+  "alternative_hypothesis": "formal alternative hypothesis statement",
+  "status": "generate_next" // Indicate a hypothesis was generated
+}}
+If no new hypothesis is needed:
+{{
+  "status": "all_generated",
+  "message": "All logical hypotheses for this objective appear to be generated already."
 }}
 
-Provide ONLY this JSON as your response with no additional text.
+Provide ONLY the JSON as your response with no additional text.
 """
 
             # Call LLM
@@ -1027,7 +1060,10 @@ Provide ONLY this JSON as your response with no additional text.
                 if p_value is not None:
                     # Default alpha level of 0.05
                     if p_value < 0.05:
-                        hypothesis_node.change_state(HypothesisState.CONFIRMED)
+                        # --- START MODIFICATION ---
+                        # Use VALIDATED to match the state_colors map in HypothesisNode.paint
+                        hypothesis_node.change_state(HypothesisState.VALIDATED)
+                        # --- END MODIFICATION ---
                     else:
                         hypothesis_node.change_state(HypothesisState.REJECTED)
                 else:
@@ -1261,6 +1297,7 @@ Provide ONLY this JSON as your response with no additional text.
             self.update_control_buttons(hypothesis_node)
             
             # Show success message
+            # Use HypothesisState.VALIDATED to match the state set in _generate_and_test_hypothesis
             state_text = "CONFIRMED" if hypothesis_node.hypothesis_config.state == HypothesisState.VALIDATED else "REJECTED"
             QMessageBox.information(
                 self,
@@ -2241,3 +2278,34 @@ class ResearchManager:
         protocol["sections"]["analysis"] = analysis
         
         return protocol
+
+    def get_hypotheses_for_objective(self, objective_id: str) -> List[HypothesisNode]:
+        """Find all hypothesis nodes directly connected from a specific objective node."""
+        connected_hypotheses = []
+        objective_node = None
+
+        # Find the objective node instance by ID
+        for node in self.grid_scene.nodes_grid.values():
+            if node.node_type == "objective" and node.node_data.get('id') == objective_id:
+                objective_node = node
+                break
+
+        if not objective_node:
+            print(f"Warning: Objective node with ID {objective_id} not found.")
+            return []
+
+        # Check connections originating from the objective node's output ports
+        for port in objective_node.output_ports:
+            for link in port.connected_links:
+                # Ensure the link starts at this port and ends at a hypothesis node
+                if link.start_port == port and link.end_node.node_type == "hypothesis":
+                    connected_hypotheses.append(link.end_node)
+
+        # Add hypotheses stored in objective_node.child_hypotheses if that attribute exists
+        # This covers cases where connections might not be the only way they are linked
+        if hasattr(objective_node, 'child_hypotheses'):
+            for child_node in objective_node.child_hypotheses:
+                 if child_node not in connected_hypotheses and child_node.node_type == "hypothesis":
+                     connected_hypotheses.append(child_node)
+
+        return connected_hypotheses

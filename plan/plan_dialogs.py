@@ -1,10 +1,10 @@
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
     QTextEdit, QComboBox, QDoubleSpinBox, QCheckBox,
-    QDialogButtonBox, QTabWidget, QPushButton, QWidget
+    QDialogButtonBox, QTabWidget, QPushButton, QWidget, QApplication
 )
 from PyQt6.QtCore import pyqtSlot
-
+from PyQt6.QtCore import Qt
 from helpers.load_icon import load_bootstrap_icon
 from plan.plan_config import Evidence, EvidenceSourceType, HypothesisState, ObjectiveType
 from plan.hypothesis_generator import HypothesisGeneratorWidget
@@ -310,7 +310,8 @@ class HypothesisEditorDialog(QDialog):
         generator_layout = QVBoxLayout(self.generator_tab)
         
         # Add note about using the generator
-        note_label = QLabel("Use the hypothesis generator to create and test hypotheses based on your data.")
+        note_label = QLabel("Use the hypothesis generator to create and test hypotheses based on your data. "
+                           "Select data source and variables, then generate a hypothesis.")
         note_label.setWordWrap(True)
         generator_layout.addWidget(note_label)
         
@@ -333,48 +334,47 @@ class HypothesisEditorDialog(QDialog):
         
         generator_layout.addLayout(hypothesis_layout)
         
-        # Create the generator widget
+        # Create the generator widget with simplified steps
         from plan.hypothesis_generator import HypothesisGeneratorWidget
         self.generator_widget = HypothesisGeneratorWidget()
+        
+        # Pass studies_manager to the generator widget if available
+        if hasattr(self, 'studies_manager') and self.studies_manager:
+            self.generator_widget.studies_manager = self.studies_manager
+            if hasattr(self.generator_widget, 'set_studies_manager'):
+                self.generator_widget.set_studies_manager(self.studies_manager)
+        
+        # Configure generator widget to only show data source and variable selection steps
+        if hasattr(self.generator_widget, 'timeline'):
+            self.generator_widget.timeline.max_step = 2  # Limit to 2 steps (data sources and variable selection)
         
         # Set a default hypothesis text based on the current config or custom input
         if hasattr(self, 'config') and self.config and hasattr(self.config, 'text'):
             self.generator_widget.current_hypothesis_text = self.config.text
-        
-        # Connect to studies manager if available
-        if self.studies_manager:
-            self.generator_widget.set_studies_manager(self.studies_manager)
             
-            # Set up signal connections for hypothesis generation results
-            if hasattr(self.generator_widget, 'variable_selection_step'):
-                self.generator_widget.variable_selection_step.test_completed.connect(self.on_test_completed)
+        # Connect signals
+        if hasattr(self.generator_widget, 'data_sources_step') and hasattr(self.generator_widget.data_sources_step, 'sources_selected'):
+            self.generator_widget.data_sources_step.sources_selected.connect(self.on_sources_selected)
             
-            # Connect to the hypothesis_tested signal
-            if hasattr(self.generator_widget, 'hypothesis_tested'):
-                self.generator_widget.hypothesis_tested.connect(self.on_hypothesis_tested)
-                
-            # Connect signals to handle dataset selection and progression
-            if hasattr(self.generator_widget, 'data_sources_step'):
-                self.generator_widget.data_sources_step.sources_selected.connect(self.on_sources_selected)
-        
+        # Add the generator widget
         generator_layout.addWidget(self.generator_widget)
         
-        # Button area with single run analysis button
-        button_layout = QHBoxLayout()
+        # Add buttons for analysis and generation
+        buttons_layout = QHBoxLayout()
+        
+        # Add a Generate button 
+        self.generate_btn = QPushButton("Update Hypothesis")
+        self.generate_btn.setIcon(load_bootstrap_icon("wand-magic-sparkles"))
+        self.generate_btn.clicked.connect(self.generate_hypothesis)
+        buttons_layout.addWidget(self.generate_btn)
         
         # Add Run Analysis button
         self.run_analysis_btn = QPushButton("Run Analysis")
-        self.run_analysis_btn.setIcon(load_bootstrap_icon("play-circle", "#333333"))
+        self.run_analysis_btn.setIcon(load_bootstrap_icon("graph-up"))
         self.run_analysis_btn.clicked.connect(self.run_analysis)
-        button_layout.addWidget(self.run_analysis_btn)
+        buttons_layout.addWidget(self.run_analysis_btn)
         
-        # Add Use Selected Hypothesis button
-        self.use_generated_btn = QPushButton("Use Selected Hypothesis")
-        self.use_generated_btn.setIcon(load_bootstrap_icon("check2-circle", "#333333"))
-        self.use_generated_btn.clicked.connect(self.use_generated_hypothesis)
-        button_layout.addWidget(self.use_generated_btn)
-        
-        generator_layout.addLayout(button_layout)
+        generator_layout.addLayout(buttons_layout)
     
     def set_custom_hypothesis(self):
         """Set a custom hypothesis text from the edit field"""
@@ -598,6 +598,38 @@ class HypothesisEditorDialog(QDialog):
                     print(f"Updating hypothesis node {self.config.id} in studies manager")
                     self.studies_manager.update_hypothesis(self.config.id, self.config)
                 
+                # Update the parent dialog or node directly if possible
+                parent = self.parent()
+                if parent:
+                    # Check if we have direct access to the node for immediate update
+                    if hasattr(parent, 'grid_scene'):
+                        # Try to find our hypothesis node in the scene
+                        for item in parent.grid_scene.items():
+                            if (hasattr(item, 'node_type') and item.node_type == 'hypothesis' and
+                                hasattr(item, 'hypothesis_config') and
+                                item.hypothesis_config.id == self.config.id):
+                                # Direct update of the node without needing a full refresh
+                                item.hypothesis_config = self.config
+                                
+                                # Update node data
+                                item.node_data.update({
+                                    'text': self.config.text,
+                                    'state': self.config.state.value,
+                                    'confidence': self.config.confidence
+                                })
+                                
+                                # Refresh node appearance
+                                if hasattr(item, 'setup_hypothesis_text'):
+                                    item.setup_hypothesis_text()
+                                if hasattr(item, 'update_evidence_summary'):
+                                    item.update_evidence_summary()
+                                
+                                # Force a visual update
+                                item.update()
+                                
+                                print(f"Directly updated hypothesis node in scene with ID {item.hypothesis_config.id}")
+                                break
+                
                 # Switch to the edit tab to show updated state/confidence
                 self.tabs.setCurrentIndex(0)
             else:
@@ -765,42 +797,6 @@ class HypothesisEditorDialog(QDialog):
                     # Update the existing hypothesis node in the studies manager
                     self.studies_manager.update_hypothesis(self.config.id, self.config)
     
-    def use_generated_hypothesis(self):
-        """Use the selected hypothesis from the generator"""
-        # Try to get the hypothesis from the variable selection step if it's been configured
-        selected_text = None
-        
-        if hasattr(self.generator_widget, 'variable_selection_step') and \
-           hasattr(self.generator_widget.variable_selection_step, 'hypothesis_text') and \
-           self.generator_widget.variable_selection_step.hypothesis_text:
-            selected_text = self.generator_widget.variable_selection_step.hypothesis_text
-        
-        # If we didn't get text from the variable selection, check if we have custom text
-        if not selected_text and hasattr(self, 'custom_hypothesis_edit'):
-            custom_text = self.custom_hypothesis_edit.text().strip()
-            if custom_text:
-                selected_text = custom_text
-        
-        # If we still don't have text, use the generator widget's current hypothesis
-        if not selected_text and hasattr(self.generator_widget, 'current_hypothesis_text'):
-            selected_text = self.generator_widget.current_hypothesis_text
-        
-        # Still no text? Use a default.
-        if not selected_text:
-            selected_text = "Higher blood pressure leads to increased risk of heart disease"
-        
-        if selected_text:
-            # Set the hypothesis text in the edit tab
-            self.text_edit.setPlainText(selected_text)
-            
-            # Switch to edit tab to show the update
-            self.tabs.setCurrentIndex(0)
-            
-            # Show confirmation
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "Hypothesis Updated", 
-                                    "The hypothesis text has been updated. You can now edit and save it.")
-    
     def get_updated_config(self):
         """Return updated hypothesis config"""
         # Update config with dialog values
@@ -821,6 +817,8 @@ class HypothesisEditorDialog(QDialog):
     async def generate_hypothesis(self):
         """Generate a new hypothesis using LLM based on the selected variables in the testing widget"""
         # Get variable selection step and testing widget
+        from plan.plan_config import HypothesisState  # Add missing import
+        
         if not hasattr(self.generator_widget, 'variable_selection_step'):
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Error", "Variable selection step not available")
@@ -842,6 +840,7 @@ class HypothesisEditorDialog(QDialog):
         subject_id = None
         time = None
         test_name = None
+        study_type = None
         
         if hasattr(testing_widget, 'outcome_combo') and testing_widget.outcome_combo.isEnabled():
             outcome = testing_widget.outcome_combo.currentText()
@@ -853,6 +852,8 @@ class HypothesisEditorDialog(QDialog):
             time = testing_widget.time_combo.currentText()
         if hasattr(testing_widget, 'test_combo'):
             test_name = testing_widget.test_combo.currentText()
+        if hasattr(testing_widget, 'design_type_combo') and testing_widget.design_type_combo.isEnabled():
+            study_type = testing_widget.design_type_combo.currentData()
             
         # Check if required variables are available
         if not outcome:
@@ -861,57 +862,135 @@ class HypothesisEditorDialog(QDialog):
             return
             
         # Set button to working state
-        self.use_generated_btn.setEnabled(False)
-        self.use_generated_btn.setText("Generating...")
+        self.generate_btn.setEnabled(False)
+        self.generate_btn.setText("Generating...")
         
         try:
             # Use testing widget's LLM function to generate hypothesis
             if hasattr(testing_widget, 'generate_hypothesis_for_test'):
-                # Call in async context
-                hypothesis_text = await testing_widget.generate_hypothesis_for_test(
-                    outcome, group, subject_id, time, test_name)
+                # Show status message
+                status_message = QLabel("Generating hypothesis... Please wait.")
+                status_message.setStyleSheet("color: #1976D2; font-weight: bold;")
+                status_message.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.generator_tab.layout().addWidget(status_message)
+                QApplication.processEvents()  # Update UI
                 
-                if hypothesis_text:
+                # Call in async context
+                hypothesis_data = await testing_widget.generate_hypothesis_for_test(
+                    outcome=outcome, 
+                    group=group, 
+                    subject_id=subject_id, 
+                    time=time, 
+                    test_name=test_name,
+                    study_type=study_type
+                )
+                
+                if hypothesis_data:
+                    # Remove status message
+                    status_message.setParent(None)
+                    status_message.deleteLater()
+                
+                    # Extract text and other data from hypothesis data
+                    hypothesis_text = hypothesis_data.get('title', '')
+                    null_hypothesis = hypothesis_data.get('null_hypothesis', '')
+                    alt_hypothesis = hypothesis_data.get('alternative_hypothesis', '')
+                    status = hypothesis_data.get('status', 'untested')
+                    
+                    # Create a well-formatted hypothesis text
+                    full_text = hypothesis_text
+                    if null_hypothesis:
+                        full_text += f"\n\nNull hypothesis: {null_hypothesis}"
+                    if alt_hypothesis:
+                        full_text += f"\nAlternative hypothesis: {alt_hypothesis}"
+                    
                     # Update the text field
                     self.custom_hypothesis_edit.setText(hypothesis_text)
                     
                     # Update the edit tab
-                    self.text_edit.setPlainText(hypothesis_text)
+                    self.text_edit.setPlainText(full_text)
                     
-                    # Update config
-                    self.config.text = hypothesis_text
+                    # Update config with all relevant data
+                    self.config.text = full_text
                     
-                    # Preserve existing state if it's already been tested
-                    if not hasattr(self.config, 'state') or self.config.state == HypothesisState.UNTESTED:
-                        # Set to draft state since this is a newly generated hypothesis
-                        self.config.state = HypothesisState.DRAFT
-                        
-                        # Update the state combo box
-                        for i in range(self.state_combo.count()):
-                            if self.state_combo.itemData(i) == HypothesisState.DRAFT:
-                                self.state_combo.setCurrentIndex(i)
-                                break
+                    # Update confidence based on test results if available
+                    if 'test_results' in hypothesis_data and hypothesis_data['test_results']:
+                        p_value = hypothesis_data['test_results'].get('p_value')
+                        if p_value is not None:
+                            confidence = min(1.0, max(0.0, 1.0 - p_value))
+                            self.confidence_spin.setValue(confidence)
+                            self.config.confidence = confidence
                     
-                    # Save to studies manager if available
+                    # Set state based on hypothesis status
+                    if status == 'confirmed':
+                        self.config.state = HypothesisState.VALIDATED
+                    elif status == 'rejected':
+                        self.config.state = HypothesisState.REJECTED
+                    elif status == 'inconclusive':
+                        self.config.state = HypothesisState.INCONCLUSIVE
+                    else:
+                        # Set to proposed state since this is a newly generated hypothesis
+                        self.config.state = HypothesisState.PROPOSED
+                    
+                    # Update the state combo box to match
+                    for i in range(self.state_combo.count()):
+                        if self.state_combo.itemData(i) == self.config.state:
+                            self.state_combo.setCurrentIndex(i)
+                            break
+                    
+                    # Store the test results in the config
+                    if 'test_results' in hypothesis_data:
+                        self.config.test_results = hypothesis_data['test_results']
+                    
+                    # Save to studies manager if available and update the node directly
                     if hasattr(self, 'studies_manager') and self.studies_manager:
                         # First check if this hypothesis already exists
                         existing_hyp = None
                         if hasattr(self.config, 'id'):
-                            existing_hyp = self.studies_manager.get_hypothesis_by_id(self.config.id)
+                            # Try both direct method and get_hypothesis_by_id
+                            if hasattr(self.studies_manager, 'get_hypothesis'):
+                                existing_hyp = self.studies_manager.get_hypothesis(self.config.id)
+                            elif hasattr(self.studies_manager, 'get_hypothesis_by_id'):
+                                existing_hyp = self.studies_manager.get_hypothesis_by_id(self.config.id)
                             
                         if existing_hyp:
                             # Update existing hypothesis
-                            existing_hyp.text = hypothesis_text
-                            
-                            # Only update state if it's untested
-                            if existing_hyp.state == HypothesisState.UNTESTED:
-                                existing_hyp.state = HypothesisState.DRAFT
+                            if isinstance(existing_hyp, dict):
+                                # Update dictionary attributes
+                                existing_hyp['text'] = full_text
+                                existing_hyp['title'] = hypothesis_text
+                                existing_hyp['null_hypothesis'] = null_hypothesis
+                                existing_hyp['alternative_hypothesis'] = alt_hypothesis
                                 
-                            self.studies_manager.update_hypothesis(existing_hyp.id, existing_hyp)
-                            print(f"Updated existing hypothesis {existing_hyp.id}")
+                                # Only update status if it makes sense
+                                if status != 'untested':
+                                    existing_hyp['status'] = status
+                                
+                                # Copy test results if available
+                                if 'test_results' in hypothesis_data:
+                                    existing_hyp['test_results'] = hypothesis_data['test_results']
+                                
+                                # Update directly in studies_manager
+                                if hasattr(self.studies_manager, 'update_hypothesis'):
+                                    self.studies_manager.update_hypothesis(self.config.id, existing_hyp)
+                            else:
+                                # Object-based update
+                                existing_hyp.text = full_text
+                                
+                                # Only update state if it makes sense
+                                if status == 'confirmed':
+                                    existing_hyp.state = HypothesisState.VALIDATED
+                                elif status == 'rejected':
+                                    existing_hyp.state = HypothesisState.REJECTED
+                                elif status == 'inconclusive':
+                                    existing_hyp.state = HypothesisState.INCONCLUSIVE
+                                elif existing_hyp.state == HypothesisState.UNTESTED:
+                                    existing_hyp.state = HypothesisState.PROPOSED
+                                
+                                # Update directly in studies_manager
+                                if hasattr(self.studies_manager, 'update_hypothesis'):
+                                    self.studies_manager.update_hypothesis(existing_hyp.id, existing_hyp)
                             
-                            # Switch to the edit tab to show the updates
-                            self.tabs.setCurrentIndex(0)
+                            print(f"Updated existing hypothesis {self.config.id}")
                         else:
                             # Create new hypothesis entry in studies manager
                             from plan.plan_config import HypothesisConfig, HypothesisState
@@ -920,27 +999,80 @@ class HypothesisEditorDialog(QDialog):
                             # Create new hypothesis config
                             new_hyp = HypothesisConfig(
                                 id=str(uuid.uuid4()),
-                                text=hypothesis_text,
-                                confidence=0.5,  # Default confidence
-                                state=HypothesisState.DRAFT  # Set to DRAFT instead of UNTESTED
+                                text=full_text,
+                                confidence=self.config.confidence,
+                                state=self.config.state
                             )
                             
                             # Copy variables from current config
                             if hasattr(self.config, 'variables'):
                                 new_hyp.variables = self.config.variables
+                            
+                            # Copy test results
+                            if hasattr(self.config, 'test_results'):
+                                new_hyp.test_results = self.config.test_results
                                 
                             # Add to studies manager
-                            self.studies_manager.add_hypothesis(new_hyp)
+                            if hasattr(self.studies_manager, 'add_hypothesis'):
+                                self.studies_manager.add_hypothesis(new_hyp)
+                            elif hasattr(self.studies_manager, 'add_hypothesis_to_study'):
+                                self.studies_manager.add_hypothesis_to_study(
+                                    hypothesis_text=hypothesis_text,
+                                    related_outcome=outcome,
+                                    hypothesis_data=hypothesis_data
+                                )
+                            
                             print(f"Added new hypothesis {new_hyp.id} to studies manager")
                             
                             # Update current config with new ID and state
                             self.config.id = new_hyp.id
-                            self.config.state = HypothesisState.DRAFT
+                    
+                    # Update the parent dialog or node directly if possible
+                    parent = self.parent()
+                    if parent:
+                        # Check if we have direct access to the node for immediate update
+                        if hasattr(parent, 'grid_scene'):
+                            # Try to find our hypothesis node in the scene
+                            for item in parent.grid_scene.items():
+                                if (hasattr(item, 'node_type') and item.node_type == 'hypothesis' and
+                                    hasattr(item, 'hypothesis_config') and
+                                    item.hypothesis_config.id == self.config.id):
+                                    # Direct update of the node without needing a full refresh
+                                    item.hypothesis_config = self.config
+                                    
+                                    # Update node data
+                                    item.node_data.update({
+                                        'text': self.config.text,
+                                        'state': self.config.state.value,
+                                        'confidence': self.config.confidence
+                                    })
+                                    
+                                    # Refresh node appearance
+                                    if hasattr(item, 'setup_hypothesis_text'):
+                                        item.setup_hypothesis_text()
+                                    if hasattr(item, 'update_evidence_summary'):
+                                        item.update_evidence_summary()
+                                    
+                                    # Force a visual update
+                                    item.update()
+                                    
+                                    print(f"Directly updated hypothesis node in scene with ID {item.hypothesis_config.id}")
+                                    break
+                    
+                    # Switch to edit tab to show the updates
+                    self.tabs.setCurrentIndex(0)
                     
                     # Show confirmation
                     from PyQt6.QtWidgets import QMessageBox
                     QMessageBox.information(self, "Hypothesis Generated", 
-                                          f"A new hypothesis has been generated:\n\n{hypothesis_text}")
+                                          f"A new hypothesis has been generated and applied to the node.")
+                else:
+                    # Remove status message
+                    status_message.setParent(None)
+                    status_message.deleteLater()
+                    
+                    from PyQt6.QtWidgets import QMessageBox
+                    QMessageBox.warning(self, "Error", "Failed to generate hypothesis")
             else:
                 from PyQt6.QtWidgets import QMessageBox
                 QMessageBox.warning(self, "Error", "Hypothesis generation function not available")
@@ -952,47 +1084,5 @@ class HypothesisEditorDialog(QDialog):
             QMessageBox.critical(self, "Error", f"Failed to generate hypothesis: {str(e)}")
         finally:
             # Reset button state
-            self.use_generated_btn.setEnabled(True)
-            self.use_generated_btn.setText("Use Selected Hypothesis")
-        
-    # Add merged_hypothesis_with_results method to handle merging with newly generated hypotheses
-    def merge_hypothesis_with_results(self, new_hypothesis_text, test_results):
-        """Merge the current hypothesis with a newly generated one and update with test results"""
-        # Update the text in both places
-        self.custom_hypothesis_edit.setText(new_hypothesis_text)
-        self.text_edit.setPlainText(new_hypothesis_text)
-        
-        # Update the config
-        self.config.text = new_hypothesis_text
-        
-        # Apply test results if available
-        if test_results and isinstance(test_results, dict):
-            if 'p_value' in test_results:
-                p_value = test_results['p_value']
-                
-                # Update confidence based on p-value
-                confidence = min(1.0, max(0.0, 1.0 - p_value))
-                self.confidence_spin.setValue(confidence)
-                self.config.confidence = confidence
-                
-                # Update state based on significance
-                if p_value < 0.05:
-                    new_state = HypothesisState.VALIDATED
-                else:
-                    new_state = HypothesisState.REJECTED
-                    
-                # Find and set the state in combo box
-                for i in range(self.state_combo.count()):
-                    if self.state_combo.itemData(i) == new_state:
-                        self.state_combo.setCurrentIndex(i)
-                        break
-                        
-                # Update config
-                self.config.state = new_state
-                self.config.test_results = test_results
-                
-        # Save to studies manager if available
-        if hasattr(self, 'studies_manager') and self.studies_manager:
-            if hasattr(self.config, 'id'):
-                self.studies_manager.update_hypothesis(self.config.id, self.config)
-                print(f"Updated hypothesis {self.config.id} in studies manager after merging")
+            self.generate_btn.setEnabled(True)
+            self.generate_btn.setText("Generate Hypothesis")

@@ -118,9 +118,9 @@ class TimelineWidget(QWidget):
         # Create steps
         step_titles = [
             "Data Sources",
-            "Variable Selection",
-            "Relationship Analysis",
-            "Hypotheses Formulation"
+            "Model Analysis",
+            # "Relationship Analysis",
+            # "Hypotheses Formulation"
         ]
         
         for i, title in enumerate(step_titles):
@@ -731,7 +731,7 @@ class HypothesisGeneratorWidget(QWidget):
             if self.selected_datasets and len(self.selected_datasets) > 0:
                 dataset_name, _ = self.selected_datasets[0]
                 self.variable_selection_step.set_data(dataset_name, self.current_hypothesis_text)
-                print(f"Updated variable selection with dataset {dataset_name}")
+                print(f"Updated Model Analysis with dataset {dataset_name}")
         else:
             print("Warning: variable_selection_step not created yet in _set_testing_widget_in_step")
     
@@ -767,7 +767,7 @@ class HypothesisGeneratorWidget(QWidget):
         self.data_sources_step.next_step.connect(lambda: self.timeline.set_active_step(2))
         self.step_content.addWidget(self.data_sources_step)
         
-        # Step 2: Variable Selection
+        # Step 2: Model Analysis
         from plan.variable_selection import VariableSelectionWidget
         
         self.variable_selection_step = VariableSelectionWidget()
@@ -808,7 +808,7 @@ class HypothesisGeneratorWidget(QWidget):
         # Add stretch to push everything to the top
         step3_layout.addStretch()
         
-        self.step_content.addWidget(step3_widget)
+        # self.step_content.addWidget(step3_widget)
         
         # Step 4: Hypotheses Formulation (placeholder)
         step4_widget = QWidget()
@@ -839,7 +839,7 @@ class HypothesisGeneratorWidget(QWidget):
         # Add stretch to push everything to the top
         step4_layout.addStretch()
         
-        self.step_content.addWidget(step4_widget)
+        # self.step_content.addWidget(step4_widget)
     
     def set_studies_manager(self, studies_manager):
         """Set the studies manager and initialize data"""
@@ -855,7 +855,7 @@ class HypothesisGeneratorWidget(QWidget):
             self.testing_widget = app_instance.data_testing_widget
             print(f"Found DataTestingWidget in app instance: {self.testing_widget}")
             
-            # Now set up the selector in the variable selection step
+            # Now set up the selector in the Model Analysis step
             if hasattr(self, 'variable_selection_step'):
                 self.variable_selection_step.setup_selector(self.testing_widget)
                 print(f"Set up variable_selection_step selector with testing_widget: {self.testing_widget}")
@@ -869,7 +869,7 @@ class HypothesisGeneratorWidget(QWidget):
                     self.testing_widget = main_window.data_testing_widget
                     print(f"Found DataTestingWidget in main window: {self.testing_widget}")
                     
-                    # Set up the selector in the variable selection step
+                    # Set up the selector in the Model Analysis step
                     if hasattr(self, 'variable_selection_step'):
                         self.variable_selection_step.setup_selector(self.testing_widget)
                         print(f"Set up variable_selection_step selector with testing_widget from main window")
@@ -957,7 +957,7 @@ class HypothesisGeneratorWidget(QWidget):
         """Set the hypothesis text for testing"""
         self.current_hypothesis_text = text
         
-        # If we're on the variable selection step, update it
+        # If we're on the Model Analysis step, update it
         if hasattr(self, 'variable_selection_step') and self.timeline.active_step == 2:
             if self.selected_datasets:  # Make sure we have a dataset selected
                 self.variable_selection_step.set_data(self.selected_datasets[0], text)
@@ -974,7 +974,7 @@ class HypothesisGeneratorWidget(QWidget):
         self.step_content.setCurrentIndex(step_number - 1)
         
         # Perform any needed initialization when advancing to a step
-        if step_number == 2:  # Variable Selection step
+        if step_number == 2:  # Model Analysis step
             # Make sure our selected datasets are available for subsequent steps
             if not self.selected_datasets and hasattr(self, 'data_sources_step'):
                 # Try to get selected datasets from the data sources step
@@ -983,12 +983,12 @@ class HypothesisGeneratorWidget(QWidget):
                     self.selected_datasets = selected
                     print(f"Retrieved datasets from step: {[name for name, _ in self.selected_datasets]}")
             
-            # Now setup the variable selection step
+            # Now setup the Model Analysis step
             self.setup_variable_selection()
     
     def setup_variable_selection(self):
-        """Setup the variable selection step with the selected data sources"""
-        print(f"Setting up variable selection with datasets: {self.selected_datasets}")
+        """Setup the Model Analysis step with the selected data sources"""
+        print(f"Setting up Model Analysis with datasets: {self.selected_datasets}")
         
         # If no datasets are selected but we have a data sources step, try to get them
         if not self.selected_datasets and hasattr(self, 'data_sources_step'):
@@ -996,7 +996,7 @@ class HypothesisGeneratorWidget(QWidget):
             print(f"Late retrieval of datasets: {self.selected_datasets}")
             
         if not self.selected_datasets:
-            print("Warning: No datasets selected for variable selection step")
+            print("Warning: No datasets selected for Model Analysis step")
             return
             
         # First make sure the testing_widget is set up
@@ -1031,15 +1031,15 @@ class HypothesisGeneratorWidget(QWidget):
             if hasattr(var_step, 'start_btn'):
                 var_step.start_btn.setVisible(False)
         
-        # Use set_data method to update the variable selection step
+        # Use set_data method to update the Model Analysis step
         if len(self.selected_datasets) > 0:
-            # Pass the first selected dataset name (not the DataFrame) to the variable selection step
+            # Pass the first selected dataset name (not the DataFrame) to the Model Analysis step
             dataset_name, dataset_df = self.selected_datasets[0]
             if hasattr(self, 'variable_selection_step'):
                 self.variable_selection_step.set_data(dataset_name, self.current_hypothesis_text)
-                print(f"Set variable selection with dataset {dataset_name}")
+                print(f"Set Model Analysis with dataset {dataset_name}")
                 
-                # Force a refresh of datasets in the variable selection widget
+                # Force a refresh of datasets in the Model Analysis widget
                 if hasattr(self.variable_selection_step, 'refresh_datasets'):
                     print("Calling refresh_datasets on variable_selection_step")
                     self.variable_selection_step.refresh_datasets()
@@ -1072,7 +1072,7 @@ class HypothesisGeneratorWidget(QWidget):
         self.current_test_results = results
         print(f"Test completed with results: {results}")
         
-        # Update our hypothesis text from the variable selection widget
+        # Update our hypothesis text from the Model Analysis widget
         if hasattr(self, 'variable_selection_step') and self.variable_selection_step.hypothesis_text:
             self.current_hypothesis_text = self.variable_selection_step.hypothesis_text
         
@@ -1484,7 +1484,7 @@ class HypothesisGeneratorWidget(QWidget):
             # Update text field
             self.hypothesis_text_field.setText(hypothesis_text)
             
-            # Now let's test this hypothesis directly with variable selection workflow
+            # Now let's test this hypothesis directly with Model Analysis workflow
             # Create a selector object
             try:
                 self.show_status_message("Testing hypothesis with selected variables...")
@@ -1497,11 +1497,11 @@ class HypothesisGeneratorWidget(QWidget):
             
             # Now we pass the hypothesis directly to testing_widget's build_model when we call the workflow
             try:
-                print("Running variable selection workflow...")
+                print("Running Model Analysis workflow...")
                 await selector.run_workflow()
-                print("Variable selection workflow completed successfully")
+                print("Model Analysis workflow completed successfully")
             except Exception as e:
-                print(f"Error in variable selection workflow: {str(e)}")
+                print(f"Error in Model Analysis workflow: {str(e)}")
                 # We'll continue instead of raising the error to avoid breaking the whole process
             
             # Enable the save button

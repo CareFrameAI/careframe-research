@@ -3505,13 +3505,13 @@ class SensitivityAnalysisWidget(QWidget):
         """Share results with LLM to get an interpretation."""
         if not self.analysis_results:
             QMessageBox.warning(self, "Error", "No analysis results to interpret")
-            return
+            return None
         
         # Create a prompt from the results
         prompt = self.format_results_for_prompt()
         if not prompt:
             QMessageBox.warning(self, "Error", "Could not format results for interpretation")
-            return
+            return None
         
         # Show loading message
         self.status_bar.showMessage("Getting AI interpretation...")
@@ -3521,25 +3521,154 @@ class SensitivityAnalysisWidget(QWidget):
             # Get interpretation from LLM
             llm_interpretation = await call_llm_async(prompt, model=llm_config.default_text_model)
             
+            # Parse the LLM response into structured format
+            structured_interpretation = self.parse_interpretation_response(llm_interpretation)
+            
             # Save interpretation
-            self.analysis_results['interpretation'] = {
-                'prompt': prompt,
-                'response': llm_interpretation,
-                'timestamp': datetime.now().isoformat()
-            }
+            self.analysis_results['interpretation'] = structured_interpretation
+            self.analysis_results['llm_interpretation'] = structured_interpretation  # Add for backwards compatibility
             
             # Display interpretation
             self.display_llm_interpretation()
             
             self.status_bar.showMessage("AI interpretation complete")
             
+            # Also update the interpretation tab
+            self.update_interpretation_tab()
+            
+            return structured_interpretation
+            
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to get AI interpretation: {str(e)}")
             self.status_bar.showMessage("Interpretation failed with error")
             import traceback
             traceback.print_exc()
+            return None
         finally:
             QApplication.restoreOverrideCursor()
+
+    def parse_interpretation_response(self, response):
+        """Parse the LLM interpretation response into structured format."""
+        try:
+            # First, try to extract JSON if it's in the response
+            import re
+            import json
+            
+            json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+            if json_match:
+                try:
+                    structured_data = json.loads(json_match.group(1))
+                    # If parsing succeeded, return it
+                    return structured_data
+                except:
+                    pass  # Continue with alternate parsing approach
+            
+            # If no valid JSON, extract structured information from text
+            structured_interpretation = {
+                'response': response,  # Store full response
+                'robustness': 'Not specified',
+                'short_summary': '',
+                'interpretation': response,  # Default to full response
+                'key_findings': [],
+                'recommendations': [],
+                'limitations': []
+            }
+            
+            # Extract robustness assessment
+            robustness_patterns = [
+                r'(?i)robustness[:\s]+([^\.]+)',
+                r'(?i)results are (highly|moderately|not) robust',
+                r'(?i)(high|moderate|low) robustness'
+            ]
+            
+            for pattern in robustness_patterns:
+                match = re.search(pattern, response)
+                if match:
+                    structured_interpretation['robustness'] = match.group(1).strip()
+                    break
+            
+            # Extract summary (first paragraph that's not a heading)
+            paragraphs = response.split('\n\n')
+            for para in paragraphs:
+                if para and not para.startswith('#') and len(para) > 40:
+                    structured_interpretation['short_summary'] = para.strip()
+                    break
+            
+            # Extract key findings
+            findings_section = self.extract_section(response, ['key findings', 'findings', 'main results'])
+            if findings_section:
+                findings = self.extract_bullet_points(findings_section)
+                structured_interpretation['key_findings'] = findings
+            
+            # Extract recommendations
+            recommendations_section = self.extract_section(response, ['recommendations', 'suggested actions', 'next steps'])
+            if recommendations_section:
+                recommendations = self.extract_bullet_points(recommendations_section)
+                structured_interpretation['recommendations'] = recommendations
+            
+            # Extract limitations
+            limitations_section = self.extract_section(response, ['limitations', 'caveats', 'constraints'])
+            if limitations_section:
+                limitations = self.extract_bullet_points(limitations_section)
+                structured_interpretation['limitations'] = limitations
+            
+            return structured_interpretation
+            
+        except Exception as e:
+            print(f"Error parsing interpretation: {str(e)}")
+            # Return a minimal valid structure
+            return {
+                'response': response,
+                'robustness': 'Unknown',
+                'short_summary': 'An error occurred while parsing the interpretation.',
+                'interpretation': response,
+                'key_findings': [],
+                'recommendations': [],
+                'limitations': []
+            }
+    
+    def extract_section(self, text, section_names):
+        """Extract a section from text based on potential section headings."""
+        import re
+        
+        for name in section_names:
+            # Look for header patterns like "# Name", "## Name", "Name:" or "NAME"
+            patterns = [
+                rf'(?i)#+\s*{name}[:\s]*\n(.*?)(?:\n#+\s*|$)',
+                rf'(?i){name}[:\s]*\n(.*?)(?:\n\w+[:\s]*\n|$)',
+                rf'(?i){name.upper()}[:\s]*\n(.*?)(?:\n\w+[:\s]*\n|$)'
+            ]
+            
+            for pattern in patterns:
+                match = re.search(pattern, text, re.DOTALL)
+                if match:
+                    return match.group(1).strip()
+        
+        return ""
+    
+    def extract_bullet_points(self, text):
+        """Extract bullet points from text."""
+        import re
+        
+        # Different bullet point patterns
+        bullet_patterns = [
+            r'(?m)^\s*[\*\-•]\s*(.*?)$',  # Bullets with *, -, or •
+            r'(?m)^\s*\d+\.\s*(.*?)$',    # Numbered points like 1., 2., etc.
+            r'(?m)^\s*\(\d+\)\s*(.*?)$'   # Numbered points like (1), (2), etc.
+        ]
+        
+        points = []
+        
+        for pattern in bullet_patterns:
+            matches = re.findall(pattern, text)
+            points.extend([m.strip() for m in matches if m.strip()])
+        
+        # If no bullet points found but text exists, split by newlines as fallback
+        if not points and text:
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+            points = [line for line in lines if len(line) > 15]  # Only include substantial lines
+        
+        return points
 
     def format_results_for_prompt(self):
         """Format sensitivity analysis results for inclusion in the LLM prompt."""
@@ -3610,15 +3739,47 @@ class SensitivityAnalysisWidget(QWidget):
             summary.append(f"Multiple Testing Correction: {self.correction_combo.currentText()}")
             summary.append(f"Significance Threshold: {self.significance_threshold_spinner.value()}")
         
-        # Add the assessment, summary and recommendation
-        summary.append("\nASSESSMENT:")
-        summary.append(results.get('robustness_assessment', 'No assessment available.'))
+        # Add the assessment, summary and recommendation from results if available
+        if results.get('robustness_assessment'):
+            summary.append("\nASSESSMENT FROM ANALYSIS:")
+            summary.append(results.get('robustness_assessment', 'No assessment available.'))
         
-        summary.append("\nSUMMARY:")
-        summary.append(results.get('summary', 'No summary available.'))
+        if results.get('summary'):
+            summary.append("\nSUMMARY FROM ANALYSIS:")
+            summary.append(results.get('summary', 'No summary available.'))
         
-        summary.append("\nRECOMMENDATION:")
-        summary.append(results.get('recommendation', 'No recommendation available.'))
+        if results.get('recommendation'):
+            summary.append("\nRECOMMENDATION FROM ANALYSIS:")
+            summary.append(results.get('recommendation', 'No recommendation available.'))
+        
+        # Add clear instructions for the AI's response format
+        summary.append("\n\nPLEASE ANALYZE THE ABOVE SENSITIVITY ANALYSIS RESULTS AND PROVIDE AN INTERPRETATION.")
+        summary.append("FORMAT YOUR RESPONSE USING THE FOLLOWING STRUCTURE:")
+        summary.append("""
+1. Start with an overall robustness assessment (e.g., "high robustness", "moderate robustness", or "low robustness")
+2. Provide a short summary paragraph of the key findings
+3. Use section headings for the following sections:
+
+# Key Findings
+- List the main findings as bullet points
+- Include specific numerical results when relevant
+- Mention whether the results changed significantly across scenarios
+
+# Recommendations
+- Provide actionable recommendations based on the results
+- Suggest how to address any issues identified
+- Indicate what additional analyses might be helpful
+
+# Limitations
+- Note any limitations of the current analysis
+- Highlight potential sources of bias
+- Discuss constraints on interpretation
+
+# Visualization Notes (optional)
+Include any observations about the visualizations if relevant.
+
+You may optionally format your response as JSON with the above sections as keys, but this is not required.
+""")
         
         return "\n".join(summary)
 
@@ -3839,16 +4000,38 @@ class SensitivityAnalysisWidget(QWidget):
 
     async def share_and_display_interpretation(self):
         """Share results with LLM and display interpretation."""
-        results = await self.share_results_with_llm()
-        if results:
-            # Instead of showing a dialog, just make sure the interpretation tab is visible
-            left_tabs = self.findChild(QTabWidget)
-            if left_tabs:
-                # Find the index of the interpretation tab
-                for i in range(left_tabs.count()):
-                    if left_tabs.tabText(i) == "Interpretation":
-                        left_tabs.setCurrentIndex(i)
-                        break
+        if not self.analysis_results:
+            QMessageBox.warning(self, "Error", "No analysis results to interpret")
+            return
+            
+        # Show loading message
+        self.status_bar.showMessage("Getting AI interpretation...")
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        
+        try:
+            # Generate interpretation
+            interpretation = await self.share_results_with_llm()
+            
+            if interpretation:
+                # Switch to the interpretation tab
+                left_tabs = self.findChild(QTabWidget)
+                if left_tabs:
+                    # Find the index of the interpretation tab
+                    for i in range(left_tabs.count()):
+                        if left_tabs.tabText(i) == "Interpretation":
+                            left_tabs.setCurrentIndex(i)
+                            break
+                
+                self.status_bar.showMessage("Interpretation generated and displayed")
+            else:
+                self.status_bar.showMessage("Failed to generate interpretation")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to generate or display interpretation: {str(e)}")
+            self.status_bar.showMessage("Interpretation failed with error")
+            import traceback
+            traceback.print_exc()
+        finally:
+            QApplication.restoreOverrideCursor()
 
     def update_interpretation_tab(self):
         """Update the interpretation tab with the LLM-generated interpretation."""
@@ -4002,14 +4185,12 @@ class SensitivityAnalysisWidget(QWidget):
                     return False
         else:
             # Do full automatic variable selection
-            variables = await self.get_all_variable_suggestions()
-            if not variables:  # Error occurred
+            result = await self.get_all_variable_suggestions()
+            if not result:  # Error occurred
                 return False
                 
-            outcome = variables["outcome"]
-            predictor = variables["predictor"]
-            additional_vars = variables["additional_vars"]
-            explanation = variables["explanation"]
+            # Unpack the tuple of values correctly
+            outcome, predictor, additional_vars = result
             
             # Validate that selected variables exist in the dataset
             error_message = self.validate_variable_suggestions(outcome, predictor, additional_vars)
@@ -4028,13 +4209,11 @@ class SensitivityAnalysisWidget(QWidget):
                 self.additional_variables_list.setPlainText('\n'.join(additional_vars))
             
             # Show variable selection explanation
-            if explanation:
-                QMessageBox.information(self, "AI Variable Selection", 
-                                      f"The following variables have been selected for your sensitivity analysis:\n\n"
-                                      f"Outcome: {outcome}\n"
-                                      f"Predictor: {predictor}\n"
-                                      f"Controls: {', '.join(additional_vars) if additional_vars else 'None'}\n\n"
-                                      f"Explanation: {explanation}")
+            QMessageBox.information(self, "AI Variable Selection", 
+                                  f"The following variables have been selected for your sensitivity analysis:\n\n"
+                                  f"Outcome: {outcome}\n"
+                                  f"Predictor: {predictor}\n"
+                                  f"Controls: {', '.join(additional_vars) if additional_vars else 'None'}")
         
         # Set outcome variable if one was determined (either manually or automatically)
         if outcome and outcome != current_outcome:
@@ -4096,7 +4275,7 @@ class SensitivityAnalysisWidget(QWidget):
     async def get_all_variable_suggestions(self):
         """Use LLM to suggest outcome, predictor, and additional variables."""
         if self.current_dataframe is None:
-            return None, None, []
+            return None
             
         # Create prompt for LLM
         df = self.current_dataframe
@@ -4113,7 +4292,10 @@ class SensitivityAnalysisWidget(QWidget):
         2. The most important predictor variable (independent variable)
         3. Up to 3 additional variables that might be relevant
         
-        Format your response as a JSON object with keys: outcome, predictor, additional_vars
+        Format your response as a JSON object with keys: "outcome", "predictor", "additional_vars"
+        Example: {{"outcome": "variable_name", "predictor": "other_variable", "additional_vars": ["var1", "var2"]}}
+        
+        IMPORTANT: You MUST return valid column names from the dataset, not make up new ones.
         """
         
         try:
@@ -4163,17 +4345,66 @@ class SensitivityAnalysisWidget(QWidget):
             additional_vars = variables_json.get("additional_vars", [])
             
             # Validate they exist in the dataframe
-            if outcome and outcome not in df.columns:
-                outcome = None
-            if predictor and predictor not in df.columns:
-                predictor = None
-            additional_vars = [var for var in additional_vars if var in df.columns]
+            if outcome not in df.columns:
+                # If outcome is missing or invalid, try to intelligently select one
+                # Look for numeric columns that might be good candidates
+                numeric_cols = df.select_dtypes(include=['number']).columns
+                if len(numeric_cols) > 0:
+                    outcome = numeric_cols[0]  # Take the first numeric column as a fallback
+            
+            if predictor not in df.columns:
+                # If predictor is missing or invalid, intelligently select one different from outcome
+                # Prefer numeric or categorical columns
+                candidate_cols = [col for col in df.columns if col != outcome]
+                if len(candidate_cols) > 0:
+                    # Prioritize numeric columns
+                    numeric_candidates = [col for col in candidate_cols if pd.api.types.is_numeric_dtype(df[col])]
+                    if numeric_candidates:
+                        predictor = numeric_candidates[0]
+                    else:
+                        predictor = candidate_cols[0]  # Take any column as a last resort
+            
+            # Filter additional vars to only valid columns, not already used as outcome or predictor
+            additional_vars = [var for var in additional_vars 
+                              if var in df.columns and var != outcome and var != predictor]
             
             return outcome, predictor, additional_vars
             
         except Exception as e:
             print(f"Error getting variable suggestions: {str(e)}")
-            return None, None, []
+            
+            # Fallback: try to intelligently select variables
+            try:
+                # For outcome: prefer numeric columns
+                numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+                if numeric_cols:
+                    outcome = numeric_cols[0]
+                else:
+                    outcome = df.columns[0]  # First column as last resort
+                
+                # For predictor: choose a different column, prefer numeric 
+                potential_predictors = [col for col in df.columns if col != outcome]
+                if potential_predictors:
+                    numeric_predictors = [col for col in potential_predictors 
+                                         if pd.api.types.is_numeric_dtype(df[col])]
+                    if numeric_predictors:
+                        predictor = numeric_predictors[0]
+                    else:
+                        predictor = potential_predictors[0]
+                else:
+                    # If there's only one column, we can't do much
+                    predictor = outcome
+                
+                # No additional vars in fallback scenario
+                return outcome, predictor, []
+            except:
+                # If all else fails, just return first and second columns
+                if len(df.columns) >= 2:
+                    return df.columns[0], df.columns[1], []
+                elif len(df.columns) == 1:
+                    return df.columns[0], df.columns[0], []
+                else:
+                    return None  # Shouldn't happen unless DataFrame is empty
 
     def validate_variable_suggestions(self, outcome, predictor, additional_vars):
         """Validate that suggested variables exist in the dataset."""

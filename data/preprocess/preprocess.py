@@ -43,6 +43,7 @@ class DataPreprocessingWidget(QWidget):
         self.step_statuses = {}
         self.patient_id_column = None # Initialize patient ID column attribute
         self.grouping_variable = None # Initialize grouping variable attribute
+        self.hypothesis = None # Initialize hypothesis attribute
         self.step_results = {} # <-- Add storage for results
         self.dataset_states = {} # <-- Add storage for dataset states
         
@@ -171,6 +172,25 @@ class DataPreprocessingWidget(QWidget):
         
         left_layout.addWidget(datasets_group)
         # --- End New Dataset List Panel ---
+        
+        # --- Add Hypothesis Input Group ---
+        hypothesis_group = QGroupBox("Study Hypothesis (Optional)")
+        hypothesis_layout = QVBoxLayout(hypothesis_group)
+        
+        # Instructions label
+        hypothesis_label = QLabel("Enter your research hypothesis to help guide the preprocessing steps:")
+        hypothesis_label.setWordWrap(True)
+        hypothesis_layout.addWidget(hypothesis_label)
+        
+        # Hypothesis text input
+        self.hypothesis_input = QTextEdit()
+        self.hypothesis_input.setPlaceholderText("Example: 'Patients treated with medication X show lower blood pressure than those given placebo.'")
+        self.hypothesis_input.setMaximumHeight(80)
+        self.hypothesis_input.textChanged.connect(self.on_hypothesis_changed)
+        hypothesis_layout.addWidget(self.hypothesis_input)
+        
+        left_layout.addWidget(hypothesis_group)
+        # --- End Hypothesis Input Group ---
         
         # Steps list with timeline visualization
         steps_group = QGroupBox("Preprocessing Steps")
@@ -560,6 +580,7 @@ class DataPreprocessingWidget(QWidget):
                 'step_results': self.step_results.copy(),
                 'patient_id_column': self.patient_id_column,
                 'grouping_variable': self.grouping_variable,
+                'hypothesis': self.hypothesis,
                 # Store the actual current dataframe state as well, needed if steps modify it
                 'current_dataframe': self.current_dataset.copy() if self.current_dataset is not None else None
             }
@@ -583,6 +604,7 @@ class DataPreprocessingWidget(QWidget):
             self.step_results = state.get('step_results', {}).copy()
             self.patient_id_column = state.get('patient_id_column')
             self.grouping_variable = state.get('grouping_variable')
+            self.hypothesis = state.get('hypothesis')
             # Load the stored dataframe state as the 'current' working copy
             loaded_df = state.get('current_dataframe')
             if loaded_df is not None:
@@ -594,6 +616,7 @@ class DataPreprocessingWidget(QWidget):
                  self.step_results = {}
                  self.patient_id_column = None
                  self.grouping_variable = None
+                 self.hypothesis = None
                  print(f"[WARN] Stored DataFrame missing for {name}, resetting state.")
 
             # Ensure step_statuses dictionary covers all defined steps
@@ -608,8 +631,16 @@ class DataPreprocessingWidget(QWidget):
             self.step_results = {}
             self.patient_id_column = None
             self.grouping_variable = None
+            self.hypothesis = None
 
-        print(f"[DEBUG] Loaded state for {name}. Patient ID: {self.patient_id_column}, Grouping Var: {self.grouping_variable}")
+        # Set hypothesis input field if available (preserving any changes)
+        if hasattr(self, 'hypothesis_input'):
+            # Temporarily disconnect to avoid triggering on_hypothesis_changed
+            self.hypothesis_input.blockSignals(True)
+            self.hypothesis_input.setPlainText(self.hypothesis or "")
+            self.hypothesis_input.blockSignals(False)
+
+        print(f"[DEBUG] Loaded state for {name}. Patient ID: {self.patient_id_column}, Grouping Var: {self.grouping_variable}, Hypothesis: {self.hypothesis}")
         print(f"[DEBUG] Step Statuses: {self.step_statuses}")
 
         # 4. Update UI based on loaded/initialized state
@@ -826,6 +857,7 @@ class DataPreprocessingWidget(QWidget):
             self.step_results = {} 
             self.patient_id_column = None
             self.grouping_variable = None
+            self.hypothesis = None
             # Initialize step statuses for empty state
             self.step_statuses = {step['id']: "Not Started" for step in self.preprocessing_steps}
             
@@ -1091,7 +1123,19 @@ class DataPreprocessingWidget(QWidget):
             
             Sample data:
             {df.head(5).to_string()}
+            """
             
+            # Include hypothesis if available
+            if self.hypothesis:
+                prompt += f"""
+                
+                Study hypothesis: {self.hypothesis}
+                """
+                
+                # Add hypothesis to analysis
+                analysis += f"Using study hypothesis for context: \"{self.hypothesis}\"\\n\\n"
+            
+            prompt += f"""
             Please identify which column(s) could be used as patient identifiers. 
             These are unique identifiers that can be used to track the same patient across different rows.
             
@@ -1246,6 +1290,11 @@ class DataPreprocessingWidget(QWidget):
             self.step_action_button.setEnabled(False)
 
             analysis = "## Dataset Normalization Analysis\\n\\n"
+            
+            # Add hypothesis to analysis if available
+            if self.hypothesis:
+                analysis += f"Using study hypothesis for context: \"{self.hypothesis}\"\\n\\n"
+                
             df = self.current_dataset
 
             if df is None:
@@ -1322,6 +1371,16 @@ class DataPreprocessingWidget(QWidget):
             {df.head(5).to_string()}
             
             The patient identifier is: {patient_id_str}
+            """
+            
+            # Include hypothesis if available
+            if self.hypothesis:
+                prompt += f"""
+                
+                Study hypothesis: {self.hypothesis}
+                """
+            
+            prompt += f"""
             
             There are {unique_values} unique patients but {total_rows} total rows.
             This means some patients have multiple rows in the dataset.
@@ -1505,6 +1564,10 @@ class DataPreprocessingWidget(QWidget):
         original_df_before_step = self.current_dataset.copy() if self.current_dataset is not None else None
         original_grouper = self.grouping_variable
         
+        # Add hypothesis to analysis if available
+        if self.hypothesis:
+            analysis += f"Using study hypothesis for context: \"{self.hypothesis}\"\\n\\n"
+            
         # Store initial candidates here to allow removal
         high_suitability_candidates = [] 
         selected_candidate_col = None
@@ -1526,10 +1589,32 @@ class DataPreprocessingWidget(QWidget):
             Column names: {', '.join(df.columns.tolist())}
             Sample data:
             {df.head(5).to_string()}
+            """
+            
+            # Include hypothesis if available - this is especially important for grouping
+            if self.hypothesis:
+                initial_prompt += f"""
+                
+                Study hypothesis: {self.hypothesis}
+                
+                Based on this hypothesis, I need to identify appropriate grouping variables that would allow testing of this hypothesis.
+                """
+            
+            initial_prompt += f"""
             
             Identify potential grouping variables suitable for hypothesis testing. Examples: treatment/control, demographics (gender, age bins), clinical conditions (diabetes, hypertension), severity scores (low/medium/high).
             
             For each potential variable, assess its suitability (High, Medium, Low) based on relevance and potential for creating distinct groups.
+            """
+            
+            # If hypothesis available, add a specific instruction to prioritize variables relevant to it
+            if self.hypothesis:
+                initial_prompt += f"""
+                
+                Give 'High' suitability primarily to variables that directly relate to the study hypothesis.
+                """
+                
+            initial_prompt += f"""
             
             Return ONLY the response in this JSON format:
             {{
@@ -1538,6 +1623,7 @@ class DataPreprocessingWidget(QWidget):
                 ]
             }}
             """
+            
             initial_analysis = await call_llm_async_json(initial_prompt, model=llm_config.default_json_model)
 
             if not isinstance(initial_analysis, dict) or "potential_grouping_variables" not in initial_analysis:
@@ -1791,6 +1877,7 @@ class DataPreprocessingWidget(QWidget):
         step_id = "validate_columns"
         analysis = ""
         original_df_before_step = self.current_dataset.copy() if self.current_dataset is not None else None
+        code_executed_successfully = False
 
         try:
             self.update_status("Validating columns for analysis...")
@@ -1800,6 +1887,11 @@ class DataPreprocessingWidget(QWidget):
             self.step_action_button.setEnabled(False)
 
             analysis = "## Column Validation Analysis\\n\\n"
+            
+            # Add hypothesis to analysis if available
+            if self.hypothesis:
+                analysis += f"Using study hypothesis for context: \"{self.hypothesis}\"\\n\\n"
+                
             df = self.current_dataset
 
             if df is None:
@@ -1819,6 +1911,18 @@ class DataPreprocessingWidget(QWidget):
             
             Sample data:
             {df.head(5).to_string()}
+            """
+            
+            # Include hypothesis if available
+            if self.hypothesis:
+                prompt += f"""
+                
+                Study hypothesis: {self.hypothesis}
+                
+                Please consider this hypothesis when evaluating the columns and prioritize variables relevant to testing it.
+                """
+                
+            prompt += f"""
             
             Please validate these columns for suitability in statistical analysis. Check for:
             
@@ -1827,6 +1931,15 @@ class DataPreprocessingWidget(QWidget):
             3. Variance: Identify constant or near-constant columns (low variance). Suggest removal.
             4. Suitability: Recommend which columns are suitable for analysis as predictors or outcomes.
             5. Transformations: Suggest necessary transformations (e.g., scaling for numeric, encoding for categorical).
+            """
+            
+            # If hypothesis is provided, add a specific instruction
+            if self.hypothesis:
+                prompt += f"""
+            6. Hypothesis Relevance: Identify which columns are most relevant for testing the study hypothesis.
+                """
+                
+            prompt += f"""
             
             Return the response in this JSON format:
             {{
@@ -1843,7 +1956,23 @@ class DataPreprocessingWidget(QWidget):
                     "General suggestions for column preparation"
                 ],
                 "code": "Python code to implement necessary basic transformations (e.g., type conversions) - ONLY IF ESSENTIAL and safe."
-            }}
+            """
+            
+            # Add hypothesis-specific field if available
+            if self.hypothesis:
+                prompt += """,
+                "hypothesis_relevant_columns": [
+                    {
+                        "column": "column_name",
+                        "relevance": "High|Medium|Low",
+                        "reason": "Why this column is relevant to the hypothesis"
+                    },
+                    ...
+                ]
+            """
+            
+            prompt += """
+            }
             """
             
             # Call LLM using the JSON-specific function
@@ -1882,7 +2011,6 @@ class DataPreprocessingWidget(QWidget):
                 
             # Execute transformation code if provided
             transformation_code = validation_results.get("code", "")
-            code_executed_successfully = False
             
             if transformation_code:
                 analysis += f"### Applying Suggested Transformations\\n\\n"
@@ -1920,6 +2048,51 @@ class DataPreprocessingWidget(QWidget):
                 except Exception as e:
                     analysis += f"⚠️ **Error executing transformation code**: {str(e)}\\n\\n"
                     # Don't raise error, just report in analysis
+            
+            # Process hypothesis-relevant columns if available
+            if self.hypothesis and "hypothesis_relevant_columns" in validation_results:
+                relevant_columns = validation_results.get("hypothesis_relevant_columns", [])
+                
+                if relevant_columns:
+                    analysis += "### Hypothesis-Relevant Columns\\n\\n"
+                    analysis += "The following columns were identified as relevant to your hypothesis:\\n\\n"
+                    
+                    # Group by relevance for better organization
+                    high_relevance = []
+                    medium_relevance = []
+                    low_relevance = []
+                    
+                    for col_info in relevant_columns:
+                        column = col_info.get("column", "")
+                        relevance = col_info.get("relevance", "")
+                        reason = col_info.get("reason", "")
+                        
+                        if relevance == "High":
+                            high_relevance.append((column, reason))
+                        elif relevance == "Medium":
+                            medium_relevance.append((column, reason))
+                        elif relevance == "Low":
+                            low_relevance.append((column, reason))
+                    
+                    if high_relevance:
+                        analysis += "**High Relevance**\\n\\n"
+                        for column, reason in high_relevance:
+                            analysis += f"- **{column}**: {reason}\\n"
+                        analysis += "\\n"
+                        
+                    if medium_relevance:
+                        analysis += "**Medium Relevance**\\n\\n"
+                        for column, reason in medium_relevance:
+                            analysis += f"- **{column}**: {reason}\\n"
+                        analysis += "\\n"
+                        
+                    if low_relevance:
+                        analysis += "**Low Relevance**\\n\\n"
+                        for column, reason in low_relevance:
+                            analysis += f"- **{column}**: {reason}\\n"
+                        analysis += "\\n"
+                else:
+                    analysis += "No columns specifically relevant to the hypothesis were identified.\\n\\n"
             
             # Validation step completes even if code fails, but logs issues
             self.step_statuses[step_id] = "Completed"
@@ -1964,337 +2137,19 @@ class DataPreprocessingWidget(QWidget):
                  self.step_action_button.setEnabled(False)
             self.display_tabs.setCurrentIndex(1)
     
-    @asyncSlot()
-    async def run_final_validation(self):
-        """Run Step 5: Final validation and group balance check"""
-        step_id = "final_validation"
-        analysis = ""
-        # No df modification in this step, so no need to track original_df
-
-        try:
-            self.update_status("Running final validation...")
-            self.step_statuses[step_id] = "In Progress"
-            self.step_status.setText("In Progress")
-            self.update_step_list_status()
-            self.step_action_button.setEnabled(False)
-
-            analysis = "## Final Dataset Validation\\n\\n"
-            df = self.current_dataset
-
-            if df is None:
-                 raise ValueError("Dataset not loaded.")
-
-            # Check prerequisites
-            patient_id_str = "Not Set"
-            if hasattr(self, 'patient_id_column') and self.patient_id_column:
-                 patient_id = self.patient_id_column
-                 patient_id_str = patient_id if isinstance(patient_id, str) else ", ".join(patient_id)
-                 analysis += f"Patient identifier: **{patient_id_str}**\\n\\n"
-            else:
-                 analysis += "⚠️ **Warning**: No patient identifier was identified.\\n\\n"
-                 patient_id = None
-            
-            grouping_variable_str = "Not Set"
-            if hasattr(self, 'grouping_variable') and self.grouping_variable:
-                 grouping_variable = self.grouping_variable
-                 grouping_variable_str = str(grouping_variable)
-                 analysis += f"Grouping variable: **{grouping_variable_str}**\\n\\n"
-            else:
-                 analysis += "⚠️ **Warning**: No grouping variable has been defined.\\n\\n"
-                 grouping_variable = None
-            
-            # Use LLM to perform final validation
-            prompt = f"""
-            I have a healthcare dataset prepared for statistical analysis with {len(df)} rows and {len(df.columns)} columns.
-            
-            Column names and data types:
-            {df.dtypes.to_string()}
-            
-            Sample data:
-            {df.head(5).to_string()}
-            
-            The patient identifier is: {patient_id_str}
-            The grouping variable is: {grouping_variable_str}
-            
-            Please perform a final validation of this dataset for statistical analysis. Check the following:
-            
-            1. Structure validation:
-               - Is the dataset normalized (one row per patient)? Consider the identifier.
-               - Are there appropriate identifiers?
-               
-            2. Content validation:
-               - Are data types appropriate for statistical analysis?
-               - Are missing values handled appropriately?
-               - Are there any zero-variance columns or constants?
-               
-            3. Group balance:
-               - Are the groups defined by the grouping variable '{grouping_variable_str}' balanced?
-               - Is the sample size sufficient for meaningful statistical analysis?
-               
-            4. Statistical assumption checks:
-               - Are there any obvious violations of assumptions for common statistical tests?
-               - Are there columns that need transformation for normality?
-            
-            5. Overall readiness:
-               - Is the dataset ready for statistical analysis?
-               - What types of statistical analyses would be appropriate?
-               - Are there any final recommendations or warnings?
-            
-            Return the response in this JSON format:
-            {{
-                "structure_validation": {{
-                    "is_normalized": true|false,
-                    "normalization_issues": ["issue1", "issue2", ...] or [],
-                    "identifier_check": "Pass|Warning|Fail",
-                    "identifier_issues": ["issue1", "issue2", ...] or []
-                }},
-                "content_validation": {{
-                    "data_type_issues": ["column1: issue", "column2: issue", ...] or [],
-                    "missing_value_issues": ["column1: X% missing", ...] or [],
-                    "zero_variance_columns": ["column1", "column2", ...] or [],
-                    "recommendations": ["recommendation1", "recommendation2", ...] or []
-                }},
-                "group_balance": {{
-                    "is_balanced": true|false,
-                    "balance_details": "Description of group balance",
-                    "sample_size_sufficient": true|false,
-                    "sample_size_notes": "Notes about sample size"
-                }},
-                "statistical_assumptions": {{
-                    "assumption_issues": ["issue1", "issue2", ...] or [],
-                    "transformation_needed": ["column1: recommendation", ...] or [],
-                    "other_concerns": ["concern1", "concern2", ...] or []
-                }},
-                "overall_readiness": {{
-                    "is_ready": true|false,
-                    "readiness_score": 1-10,
-                    "appropriate_analyses": ["analysis1", "analysis2", ...],
-                    "final_recommendations": ["recommendation1", "recommendation2", ...],
-                    "warnings": ["warning1", "warning2", ...] or []
-                }}
-            }}
-            """
-            
-            # Call LLM using the JSON-specific function and default JSON model
-            validation_results = await call_llm_async_json(prompt, model=llm_config.default_json_model)
-            
-            if not isinstance(validation_results, dict):
-                analysis += f"⚠️ **Error**: LLM did not return a valid JSON object for final validation. Response type: {type(validation_results)}\\nRaw Response:\\n```\\n{validation_results}\\n```\\n"
-                raise TypeError("LLM response for final validation is not a dictionary.")
-
-            # --- Process the validation_results dictionary directly ---
-            analysis += "### 1. Structure Validation\\n\\n"
-
-            structure = validation_results.get("structure_validation", {})
-            is_normalized = structure.get("is_normalized", False)
-            normalization_issues = structure.get("normalization_issues", [])
-            identifier_check = structure.get("identifier_check", "")
-            identifier_issues = structure.get("identifier_issues", [])
-            
-            if is_normalized:
-                analysis += "✓ **Dataset structure appears normalized** based on LLM check.\\n\\n"
-            else:
-                analysis += "⚠️ **Dataset may not be normalized**: LLM flagged potential issues.\\n\\n"
-                
-                if normalization_issues:
-                    analysis += "Normalization issues noted by LLM:\\n"
-                    for issue in normalization_issues:
-                        analysis += f"- {issue}\\n"
-                    analysis += "\\n"
-            
-            analysis += f"Identifier check: **{identifier_check}**\\n\\n"
-            
-            if identifier_issues:
-                analysis += "Identifier issues noted by LLM:\\n"
-                for issue in identifier_issues:
-                    analysis += f"- {issue}\\n"
-                analysis += "\\n"
-            
-            analysis += "### 2. Content Validation\\n\\n"
-
-            content = validation_results.get("content_validation", {})
-            data_type_issues = content.get("data_type_issues", [])
-            missing_value_issues = content.get("missing_value_issues", [])
-            zero_variance_columns = content.get("zero_variance_columns", [])
-            content_recommendations = content.get("recommendations", [])
-            
-            if data_type_issues:
-                analysis += "Data type issues noted by LLM:\\n"
-                for issue in data_type_issues:
-                    analysis += f"- {issue}\\n"
-                analysis += "\\n"
-            else:
-                analysis += "✓ **No data type issues** flagged by LLM.\\n\\n"
-            
-            if missing_value_issues:
-                analysis += "Missing value issues noted by LLM:\\n"
-                for issue in missing_value_issues:
-                    analysis += f"- {issue}\\n"
-                analysis += "\\n"
-            else:
-                analysis += "✓ **No major missing value issues** flagged by LLM.\\n\\n"
-            
-            if zero_variance_columns:
-                analysis += "Zero variance columns flagged by LLM:\\n"
-                for col in zero_variance_columns:
-                    analysis += f"- {col}\\n"
-                analysis += "\\n"
-            
-            if content_recommendations:
-                analysis += "Content recommendations from LLM:\\n"
-                for rec in content_recommendations:
-                    analysis += f"- {rec}\\n"
-                analysis += "\\n"
-            
-            analysis += "### 3. Group Balance\\n\\n"
-
-            group_balance = validation_results.get("group_balance", {})
-            is_balanced = group_balance.get("is_balanced", False)
-            balance_details = group_balance.get("balance_details", "")
-            sample_size_sufficient = group_balance.get("sample_size_sufficient", False)
-            sample_size_notes = group_balance.get("sample_size_notes", "")
-            
-            analysis += f"LLM assessment of group balance ('{grouping_variable_str}'):\\n"
-            if is_balanced:
-                analysis += "✓ **Groups appear balanced**\\n\\n"
-            else:
-                analysis += "⚠️ **Groups may be imbalanced**\\n\\n"
-            
-            analysis += f"{balance_details}\\n\\n"
-            
-            analysis += f"LLM assessment of sample size sufficiency:\\n"
-            if sample_size_sufficient:
-                analysis += "✓ **Sample size likely sufficient**\\n\\n"
-            else:
-                analysis += "⚠️ **Sample size may be insufficient**\\n\\n"
-            
-            analysis += f"{sample_size_notes}\\n\\n"
-            
-            analysis += "### 4. Statistical Assumption Checks\\n\\n"
-
-            assumptions = validation_results.get("statistical_assumptions", {})
-            assumption_issues = assumptions.get("assumption_issues", [])
-            transformation_needed = assumptions.get("transformation_needed", [])
-            other_concerns = assumptions.get("other_concerns", [])
-            
-            if assumption_issues:
-                analysis += "Potential assumption violations noted by LLM:\\n"
-                for issue in assumption_issues:
-                    analysis += f"- {issue}\\n"
-                analysis += "\\n"
-            else:
-                analysis += "✓ **No obvious assumption violations** flagged by LLM.\\n\\n"
-            
-            if transformation_needed:
-                analysis += "Transformations suggested by LLM:\\n"
-                for transform in transformation_needed:
-                    analysis += f"- {transform}\\n"
-                analysis += "\\n"
-            
-            if other_concerns:
-                analysis += "Other concerns noted by LLM:\\n"
-                for concern in other_concerns:
-                    analysis += f"- {concern}\\n"
-                analysis += "\\n"
-            
-            analysis += "### 5. Overall Readiness\\n\\n"
-
-            readiness = validation_results.get("overall_readiness", {})
-            is_ready = readiness.get("is_ready", False)
-            readiness_score = readiness.get("readiness_score", 0)
-            appropriate_analyses = readiness.get("appropriate_analyses", [])
-            final_recommendations = readiness.get("final_recommendations", [])
-            warnings = readiness.get("warnings", [])
-            
-            analysis += f"LLM overall readiness assessment:\\n"
-            if is_ready:
-                analysis += f"✓ **Dataset likely ready for analysis**\\n\\n"
-            else:
-                analysis += f"⚠️ **Dataset may not be fully ready**\\n\\n"
-            
-            analysis += f"Readiness score (from LLM): **{readiness_score}/10**\\n\\n"
-            
-            if appropriate_analyses:
-                analysis += "Appropriate statistical analyses suggested by LLM:\\n"
-                for analysis_type in appropriate_analyses:
-                    analysis += f"- {analysis_type}\\n"
-                analysis += "\\n"
-            
-            if final_recommendations:
-                analysis += "Final recommendations from LLM:\\n"
-                for rec in final_recommendations:
-                    analysis += f"- {rec}\\n"
-                analysis += "\\n"
-            
-            if warnings:
-                analysis += "Warnings from LLM:\\n"
-                for warning in warnings:
-                    analysis += f"- {warning}\\n"
-                analysis += "\\n"
-
-            # Update the overview card based on LLM readiness score
-            # Clear previous readiness card if exists
-            if self.overview_stats.count() >= 4:
-                item = self.overview_stats.itemAt(3)
-                if item and item.widget():
-                    item.widget().deleteLater()
-                    # Take the item out of the layout management
-                    self.overview_stats.takeAt(3)
-
-            # Add new readiness card
-            readiness_card = self.create_stat_card(
-                "Analysis Readiness (LLM)",
-                f"{readiness_score}/10" + (" ✓" if is_ready else " ⚠️"),
-                "check-circle" if is_ready else "exclamation-triangle"
-            )
-            self.overview_stats.addWidget(readiness_card)
-
-            # Update the preprocessing status label
-            if is_ready:
-                self.preprocessing_status_label.setText(f"Status: Ready for Analysis (LLM)")
-                self.preprocessing_status_label.setStyleSheet("color: #28a745;")  # Green
-            else:
-                self.preprocessing_status_label.setText(f"Status: Partially Ready ({readiness_score}/10) (LLM)")
-                self.preprocessing_status_label.setStyleSheet("color: #ffc107;")  # Yellow/amber
-
-            # On success:
-            self.step_statuses[step_id] = "Completed"
-            self.step_status.setText("Completed")
-            self.update_status("Final validation completed")
-            # Store results
-            self.step_results[step_id] = {
-                "dataframe": self.current_dataset.copy(), # Store copy of final state
-                "analysis": analysis
-            }
-            # --- Save state AFTER successful completion ---
-            self.save_current_dataset_state()
-            # No next step to select
-
-        except Exception as e:
-            error_message = f"Error performing final validation: {str(e)}"
-            print(f"[ERROR] {error_message}")
-            analysis += f"\\n--- ERROR --- \\n{error_message}\\n"
-            self.step_statuses[step_id] = "Error"
-            self.step_status.setText("Error")
-            self.update_status(error_message)
-
-        finally:
-            # Always update UI elements at the end
-            self.analysis_text.setText(analysis)
-            self.update_step_list_status()
-            # Re-enable button logic
-            items = self.steps_list.selectedItems()
-            if items and items[0].data(Qt.ItemDataRole.UserRole) == step_id and self.step_statuses[step_id] != "Completed":
-                self.step_action_button.setEnabled(True)
-            elif not items or items[0].data(Qt.ItemDataRole.UserRole) != step_id :
-                 pass
-            else: # Step is completed
-                 self.step_action_button.setEnabled(False)
-            self.display_tabs.setCurrentIndex(1)
-
     def select_next_step(self):
         """Select the next step in the timeline"""
         current_row = self.steps_list.currentRow()
         if current_row < self.steps_list.count() - 1:
             self.steps_list.setCurrentRow(current_row + 1)
             self.on_step_selected(self.steps_list.item(current_row + 1))
+
+    def on_hypothesis_changed(self):
+        """Save the hypothesis when it's changed by the user"""
+        if hasattr(self, 'hypothesis_input'):
+            self.hypothesis = self.hypothesis_input.toPlainText().strip()
+            if self.current_dataset_name:
+                # Just save the state whenever hypothesis changes
+                self.save_current_dataset_state()
+                self.update_status("Hypothesis updated")
+                

@@ -530,7 +530,7 @@ class VariableSelectionWidget(QWidget):
         self.hypothesis_btn.setToolTip("Generate a hypothesis based on the selected variables")
         self.hypothesis_btn.setEnabled(False) 
         self.hypothesis_btn.clicked.connect(self.generate_hypothesis)
-        action_buttons_layout.addWidget(self.hypothesis_btn)
+        # action_buttons_layout.addWidget(self.hypothesis_btn)
         
         self.interpret_btn = QPushButton("Interpret Results")
         self.interpret_btn.setToolTip("Generate an interpretation of the test results")
@@ -548,7 +548,7 @@ class VariableSelectionWidget(QWidget):
         self.continue_btn = QPushButton("Continue to Step 3")
         self.continue_btn.setEnabled(False)
         self.continue_btn.clicked.connect(self.next_step.emit)  # Connect to next_step signal
-        button_layout.addWidget(self.continue_btn)
+        # button_layout.addWidget(self.continue_btn)
         
         layout.addLayout(button_layout)
         

@@ -1586,7 +1586,11 @@ class DataTestingWidget(QWidget):
             - Binary event indicator (0=censored, 1=event occurred) as EVENT
             - Treatment/comparison group as GROUP
 
-            In your response, please give each column one of the roles above. Be objective and focus on statistical properties, NOT on variable names. Consider patterns of repeated measurements, uniqueness, and data distributions.
+            In your response, please give each column one of the roles above. 
+
+            Prioritize the provided 'Study Hypothesis' (if available) when assigning roles. For example, if the hypothesis mentions a specific outcome (e.g., 'outcome at month 9') or time point, ensure the corresponding variable(s) are assigned the OUTCOME and TIME roles correctly, even if other variables look statistically similar. Use statistical properties and patterns (like repeated measures, uniqueness, distributions) as secondary confirmation. 
+
+            Be objective and focus on statistical properties, NOT on variable names. Consider patterns of repeated measurements, uniqueness, and data distributions.
 
             Respond with a JSON object in this format:
             {{
@@ -5481,6 +5485,10 @@ class DataTestingWidget(QWidget):
                 else:
                     # For other large structures, just note their presence
                     minimal[key] = f"{key.capitalize()} data available but excluded for conciseness"
+        
+        # IMPORTANT: Sanitize all values in the minimal dictionary to ensure they're JSON serializable
+        # This will convert NumPy types to standard Python types
+        minimal = self._sanitize_for_json(minimal)
         
         return minimal
         
