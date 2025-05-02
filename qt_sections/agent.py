@@ -257,7 +257,1483 @@ class TimelineTaskWidget(QFrame):
         if task.status == TaskStatus.RUNNING:
             self.timer.start(1000)
             self.start_border_animation()
+        
+    def init_ui(self):
+        """Initialize the UI with grid layout."""
+        self.setObjectName("timelineTask")
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setFrameShadow(QFrame.Shadow.Raised)
+        self.setMinimumHeight(60)
+        self.setMaximumHeight(80)
+        
+        # Add shadow effect - but don't apply it directly to the widget yet
+        # We'll handle it in setup_animations to avoid conflicts with highlight effect
+        self.shadow_effect = QGraphicsDropShadowEffect()
+        self.shadow_effect.setBlurRadius(8)
+        self.shadow_effect.setColor(QColor(0, 0, 0, 40))
+        self.shadow_effect.setOffset(0, 2)
+        
+        # Use compact grid layout 
+        grid = QGridLayout(self)
+        grid.setContentsMargins(8, 8, 8, 8)
+        grid.setSpacing(4)
+        
+        # Status container with background circle for icon
+        status_container = QWidget()
+        status_container.setFixedSize(32, 32)
+        status_layout = QVBoxLayout(status_container)
+        status_layout.setContentsMargins(0, 0, 0, 0)
+        status_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        # Add status icon at left with circle background
+        self.status_icon = QLabel()
+        self.status_icon.setFixedSize(24, 24)
+        self.status_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_layout.addWidget(self.status_icon)
+        
+        # Add status container to main layout
+        grid.addWidget(status_container, 0, 0, 2, 1, Qt.AlignmentFlag.AlignCenter)
+        
+        # Add task name at top row
+        self.name_label = QLabel(self.task.name)
+        self.name_label.setObjectName("taskName")
+        font = QFont()
+        font.setBold(True)
+        font.setPointSize(9)
+        self.name_label.setFont(font)
+        # Limit name length with ellipsis if too long
+        self.name_label.setMaximumWidth(170)
+        metrics = QFontMetrics(self.name_label.font())
+        elided_text = metrics.elidedText(self.task.name, Qt.TextElideMode.ElideRight, 160)
+        self.name_label.setText(elided_text)
+        grid.addWidget(self.name_label, 0, 1)
+        
+        # Add task description as a smaller, lighter text if it's not empty
+        if self.task.description and self.task.description.strip():
+            self.desc_label = QLabel(self.task.description)
+            self.desc_label.setObjectName("taskDescription")
+            self.desc_label.setWordWrap(True)
+            self.desc_label.setStyleSheet("font-size: 8pt; ")
+            # Truncate long descriptions
+            elided_desc = metrics.elidedText(self.task.description, Qt.TextElideMode.ElideRight, 160)
+            self.desc_label.setText(elided_desc)
+            grid.addWidget(self.desc_label, 1, 1)
+        
+        # Add elapsed time at bottom right
+        self.time_label = QLabel(self.task.format_elapsed_time())
+        self.time_label.setObjectName("taskTime")
+        font = QFont()
+        font.setPointSize(7)
+        self.time_label.setFont(font)
+        grid.addWidget(self.time_label, 2, 1, 1, 1, Qt.AlignmentFlag.AlignRight)
+        
+        # Update the status icon based on current status
+        self.update_status_icon()
+        
+        # Set a fixed width to make the grid more uniform
+        self.setMinimumWidth(180)
+        self.setMaximumWidth(220)
+        
+        # Enhanced chip-like styling
+        self.setStyleSheet("""
+            QFrame#timelineTask {
+                border-radius: 8px;
+                border: 1px solid #ddd;
+            }
+            QFrame#timelineTask:hover {
+                border-color: #aaa;
+            }
+            QFrame#timelineTask[status="running"] {
+                border-color: #4a6ee0;
+            }
+            QFrame#timelineTask[status="completed"] {
+                border-color: #28a745;
+            }
+            QFrame#timelineTask[status="failed"] {
+                border-color: #dc3545;
+            }
+            QFrame#timelineTask[status="warning"] {
+                border-color: #ffc107;
+            }
+            QLabel#taskName {
+                font-weight: bold;
+            }
+        """)
+        
+    def setup_animations(self):
+        """Set up animations for the task widget."""
+        # Use a different approach for handling both effects
+        # Instead of setting graphics effects directly on the widget, we'll use property animations directly
+        
+        # Setup opacity animation for highlighting
+        self.highlight_animation = QPropertyAnimation(self, b"windowOpacity")
+        self.highlight_animation.setDuration(300)  # Faster animation
+        self.highlight_animation.setStartValue(1.0)
+        self.highlight_animation.setEndValue(0.7)
+        self.highlight_animation.setLoopCount(2)  # Less loops for subtle effect
+        
+        # Setup shadow animation
+        self.shadow_animation = QPropertyAnimation(self.shadow_effect, b"blurRadius")
+        self.shadow_animation.setDuration(1500)
+        self.shadow_animation.setStartValue(5)
+        self.shadow_animation.setEndValue(15)
+        self.shadow_animation.setLoopCount(-1)  # infinite
+        self.shadow_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        
+        # Apply shadow effect at the end of setup
+        self.setGraphicsEffect(self.shadow_effect)
             
+    def start_border_animation(self):
+        """Start the border pulse animation for running tasks."""
+        # Start shadow animation for running tasks
+        if self.shadow_animation and self.shadow_effect:
+            self.shadow_animation.stop()
+            self.shadow_animation.start()
+            
+    def stop_border_animation(self):
+        """Stop the border animation."""
+        # Stop shadow animation
+        if hasattr(self, 'shadow_animation') and self.shadow_animation:
+            self.shadow_animation.stop()
+            # Reset shadow to normal
+            if hasattr(self, 'shadow_effect') and self.shadow_effect:
+                self.shadow_effect.setBlurRadius(8)
+            
+    def update_time(self):
+        """Update the elapsed time display."""
+        self.time_label.setText(self.task.format_elapsed_time())
+        
+    def update_status_icon(self):
+        """Update the status icon based on task status."""
+        if self.task.status == TaskStatus.PENDING:
+            # Pending icon (clock)
+            icon_path = load_bootstrap_icon("clock")
+            self.status_icon.setPixmap(QIcon(icon_path).pixmap(24, 24))
+            self.status_icon.setVisible(True)
+            
+            # Stop timer if it's running
+            if self.timer.isActive():
+                self.timer.stop()
+                
+            # Stop border animation
+            self.stop_border_animation()
+                
+            # Remove spinner if it exists
+            if self.spinner:
+                self.spinner.deleteLater()
+                self.spinner = None
+                
+        elif self.task.status == TaskStatus.RUNNING:
+            # Running icon (spinner)
+            if not self.spinner:
+                self.spinner = SpinnerWidget(self, size=24, color=QColor(74, 110, 224))  # Use theme blue color
+                layout = self.layout()
+                # Find the status icon inside the layout
+                for i in range(layout.count()):
+                    item = layout.itemAt(i)
+                    if item.widget() and isinstance(item.widget(), QWidget) and item.widget().layout():
+                        status_layout = item.widget().layout()
+                        for j in range(status_layout.count()):
+                            widget = status_layout.itemAt(j).widget()
+                            if widget == self.status_icon:
+                                # Hide the status icon when spinner is shown
+                                self.status_icon.setVisible(False)
+                                status_layout.replaceWidget(self.status_icon, self.spinner)
+                                self.spinner.show()
+                                break
+            
+            # Start timer if not already running
+            if not self.timer.isActive():
+                self.timer.start(1000)
+                
+            # Start border animation
+            self.start_border_animation()
+                
+        elif self.task.status == TaskStatus.COMPLETED:
+            # Completed icon (check)
+            icon_path = load_bootstrap_icon("check-circle-fill")
+            self.status_icon.setPixmap(QIcon(icon_path).pixmap(24, 24))
+            self.status_icon.setVisible(True)
+            
+            # Stop timer if it's running
+            if self.timer.isActive():
+                self.timer.stop()
+                
+            # Stop border animation
+            self.stop_border_animation()
+                
+            # Remove spinner if it exists
+            if self.spinner:
+                self.spinner.deleteLater()
+                self.spinner = None
+                
+        elif self.task.status == TaskStatus.FAILED:
+            # Failed icon (x)
+            icon_path = load_bootstrap_icon("x-circle-fill")
+            self.status_icon.setPixmap(QIcon(icon_path).pixmap(24, 24))
+            self.status_icon.setVisible(True)
+            
+            # Stop timer if it's running
+            if self.timer.isActive():
+                self.timer.stop()
+                
+            # Stop border animation
+            self.stop_border_animation()
+                
+            # Remove spinner if it exists
+            if self.spinner:
+                self.spinner.deleteLater()
+                self.spinner = None
+                
+        elif self.task.status == TaskStatus.WARNING:
+            # Warning icon (!)
+            icon_path = load_bootstrap_icon("exclamation-triangle-fill")
+            self.status_icon.setPixmap(QIcon(icon_path).pixmap(24, 24))
+            self.status_icon.setVisible(True)
+            
+            # Stop timer if it's running
+            if self.timer.isActive():
+                self.timer.stop()
+                
+            # Stop border animation
+            self.stop_border_animation()
+                
+            # Remove spinner if it exists
+            if self.spinner:
+                self.spinner.deleteLater()
+                self.spinner = None
+                
+        # Update property for styling
+        self.setProperty("status", self.task.status.name.lower())
+        self.style().polish(self)
+    
+    def update_status(self, status: TaskStatus):
+        """Update the task status and refresh the UI."""
+        if self.task.validate_transition(status):
+            # Update task status
+            self.task.status = status
+            
+            # Update UI
+            self.update_status_icon()
+            self.update_time()
+            
+            # Mark end time if status is terminal
+            if status == TaskStatus.COMPLETED or status == TaskStatus.FAILED or status == TaskStatus.WARNING:
+                self.task.end_time = datetime.now()
+                self.task.duration = (self.task.end_time - self.task.start_time).total_seconds()
+
+
+class TimelineWidget(QScrollArea):
+    """Widget that displays a timeline of tasks."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.task_widgets = {}  # Map of task name -> widget
+        self.column_count = 3  # Default number of chips per row
+        self.current_row = 0
+        self.current_col = 0
+        self.init_ui()  # Call init_ui after initializing properties
+    
+    def init_ui(self):
+        """Initialize the UI."""
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        
+        # Create container widget
+        self.container = QWidget()
+        self.setWidget(self.container)
+        
+        # Create grid layout instead of vertical layout
+        self.layout = QGridLayout(self.container)
+        self.layout.setContentsMargins(12, 12, 12, 12)  # Slightly more padding around edges
+        self.layout.setSpacing(10)  # Moderate spacing between items
+        self.layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        
+        # Add a header label
+        self.header_label = QLabel("Task Timeline")
+        self.header_label.setStyleSheet("""
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 8px;
+        """)
+        self.layout.addWidget(self.header_label, 0, 0, 1, self.column_count)
+        
+        # Start tasks at row 1 (after header)
+        self.current_row = 1
+        
+        # Add a spacer item at the bottom to push content up
+        self.spacer_item = QSpacerItem(1, 1, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+        self.layout.addItem(self.spacer_item, 9999, 0, 1, self.column_count)  # High row number to ensure it's at the bottom
+        
+        # Connect resize event to adjust column count
+        self.container.installEventFilter(self)
+        
+    def eventFilter(self, obj, event):
+        """Handle resize events to adjust column count."""
+        if obj == self.container and event.type() == event.Type.Resize:
+            self.adjust_column_count()
+        return super().eventFilter(obj, event)
+    
+    def adjust_column_count(self):
+        """Adjust column count based on container width."""
+        width = self.container.width()
+        # Calculate optimal columns based on chip width + spacing
+        chip_width = 220  # Maximum width of chips
+        spacing = self.layout.spacing()
+        
+        # Calculate how many chips can fit in the width (minimum 1)
+        new_column_count = max(1, int(width / (chip_width + spacing)))
+        
+        # Only reorganize if column count changed
+        if new_column_count != self.column_count:
+            self.column_count = new_column_count
+            self.reorganize_layout()
+    
+    def reorganize_layout(self):
+        """Reorganize the task layout after column count change."""
+        # Store widgets in order
+        widgets = []
+        for name, widget in self.task_widgets.items():
+            widgets.append(widget)
+        
+        # Remove widgets from layout
+        for widget in widgets:
+            self.layout.removeWidget(widget)
+        
+        # Remove spacer
+        self.layout.removeItem(self.spacer_item)
+        
+        # Reset position
+        self.current_row = 1  # Start after header
+        self.current_col = 0
+        
+        # Re-add widgets
+        for widget in widgets:
+            self.layout.addWidget(widget, self.current_row, self.current_col)
+            self.current_col += 1
+            if self.current_col >= self.column_count:
+                self.current_col = 0
+                self.current_row += 1
+                
+        # Update header span
+        self.layout.removeWidget(self.header_label)
+        self.layout.addWidget(self.header_label, 0, 0, 1, self.column_count)
+        
+        # Add spacer back
+        self.layout.addItem(self.spacer_item, 9999, 0, 1, self.column_count)
+        
+    def add_task(self, task: TimelineTask):
+        """
+        Add a task to the timeline.
+        
+        Args:
+            task: The task to add
+        """
+        # Create task widget
+        task_widget = TimelineTaskWidget(task, self)
+        
+        # Store reference
+        self.task_widgets[task.name] = task_widget
+        
+        # Remove spacer first
+        self.layout.removeItem(self.spacer_item)
+        
+        # Add task widget to layout at the current position
+        self.layout.addWidget(task_widget, self.current_row, self.current_col)
+        
+        # Update position for next task
+        self.current_col += 1
+        if self.current_col >= self.column_count:
+            self.current_col = 0
+            self.current_row += 1
+        
+        # Add spacer back at the bottom
+        self.layout.addItem(self.spacer_item, 9999, 0, 1, self.column_count)
+        
+        # Scroll to show the new task
+        self.scroll_to_task(task.name)
+        
+        return task_widget
+        
+    def update_task_status(self, task_name: str, status: TaskStatus):
+        """
+        Update a task's status.
+        
+        Args:
+            task_name: The name of the task
+            status: The new status
+        """
+        if task_name in self.task_widgets:
+            self.task_widgets[task_name].update_status(status)
+            
+    def scroll_to_task(self, task_name: str):
+        """
+        Scroll to ensure a task is visible.
+        
+        Args:
+            task_name: The name of the task
+        """
+        if task_name in self.task_widgets:
+            task_widget = self.task_widgets[task_name]
+            
+            # Highlight the task
+            self._highlight_task(task_widget)
+            
+            # Scroll to the widget
+            task_geometry = task_widget.geometry()
+            viewport_rect = self.viewport().rect()
+            
+            if task_geometry.top() < 0 or task_geometry.bottom() > viewport_rect.height():
+                # Get the widget position in scrollarea coordinates
+                task_pos = task_widget.pos()
+                
+                # Scroll to position
+                self.ensureWidgetVisible(task_widget)
+            
+    def _highlight_task(self, task_widget):
+        """
+        Highlight a task briefly.
+        
+        Args:
+            task_widget: The widget to highlight
+        """
+        # Start highlight animation
+        if hasattr(task_widget, 'highlight_animation') and task_widget.highlight_animation:
+            task_widget.highlight_animation.stop()
+            task_widget.highlight_animation.start()
+
+
+class RoundedChatWidget(QWidget):
+    """Chat widget with rounded corners."""
+    messageSent = pyqtSignal(str)
+    fileUploadRequested = pyqtSignal(str)  # Signal for file upload
+    suggestionClicked = pyqtSignal(str)  # Signal for suggestion clicks
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.init_ui()
+        self.typing_indicator_visible = False
+        self.suggestions = []
+        self.markdown = None
+        
+    def init_ui(self):
+        """Initialize the UI with grid layouts."""
+        # Set up main layout
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        # Create settings panel at the very top
+        settings_panel = QWidget()
+        settings_panel.setObjectName("settingsPanel")
+        
+        # Use horizontal layout for settings
+        settings_layout = QHBoxLayout(settings_panel)
+        settings_layout.setContentsMargins(10, 10, 10, 10)
+        settings_layout.setSpacing(15)
+        
+        # Create settings title
+        settings_title = QLabel("Analysis Settings")
+        settings_title.setStyleSheet("font-weight: bold;")
+        settings_layout.addWidget(settings_title)
+        
+        # Plan depth control - already in horizontal layout
+        plan_layout = QHBoxLayout()
+        plan_layout.setSpacing(8)
+        plan_label = QLabel("Plan Depth:")
+        plan_label.setObjectName("settingLabel")
+        plan_label.setFixedWidth(70)
+        self.plan_depth_spinbox = QSpinBox()
+        self.plan_depth_spinbox.setObjectName("settingSpinbox")
+        self.plan_depth_spinbox.setMinimum(1)
+        self.plan_depth_spinbox.setMaximum(10)
+        self.plan_depth_spinbox.setValue(5)
+        self.plan_depth_spinbox.setFixedWidth(45)
+        self.plan_depth_spinbox.setToolTip("Analysis plan depth")
+        plan_layout.addWidget(plan_label)
+        plan_layout.addWidget(self.plan_depth_spinbox)
+        
+        # Max graphs control - already in horizontal layout
+        graphs_layout = QHBoxLayout()
+        graphs_layout.setSpacing(8)
+        graphs_label = QLabel("Max Graphs:")
+        graphs_label.setObjectName("settingLabel")
+        graphs_label.setFixedWidth(70)
+        self.max_graphs_spinbox = QSpinBox()
+        self.max_graphs_spinbox.setObjectName("settingSpinbox")
+        self.max_graphs_spinbox.setMinimum(1)
+        self.max_graphs_spinbox.setMaximum(20)
+        self.max_graphs_spinbox.setValue(10)
+        self.max_graphs_spinbox.setFixedWidth(45)
+        self.max_graphs_spinbox.setToolTip("Maximum graphs per step")
+        graphs_layout.addWidget(graphs_label)
+        graphs_layout.addWidget(self.max_graphs_spinbox)
+        
+        # Add both controls to the horizontal layout
+        settings_layout.addLayout(plan_layout)
+        settings_layout.addLayout(graphs_layout)
+        settings_layout.addStretch()
+        
+        # Add settings panel to main layout
+        main_layout.addWidget(settings_panel)
+        
+        # Create main content area for chat
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
+        
+        # Create the chat display area
+        self.chat_display = QScrollArea()
+        self.chat_display.setObjectName("chatDisplay")
+        self.chat_display.setWidgetResizable(True)
+        self.chat_display.setFrameShape(QFrame.Shape.NoFrame)
+        self.chat_display.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.chat_display.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        
+        # Create the container for chat messages
+        self.chat_container = QWidget()
+        self.chat_container.setObjectName("chatContainer")
+        self.chat_layout = QVBoxLayout(self.chat_container)
+        self.chat_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.chat_layout.setContentsMargins(10, 10, 10, 10)
+        self.chat_layout.setSpacing(15)
+        
+        # Add an expanding spacer to push content to the top
+        self.chat_layout.addStretch()
+        
+        # Set the container as the scroll area's widget
+        self.chat_display.setWidget(self.chat_container)
+        
+        # Add chat display to content layout with stretch
+        content_layout.addWidget(self.chat_display, 1)
+        
+        # Add content widget to main layout
+        main_layout.addWidget(content_widget, 1)
+        
+        # Create the input area with rounded corners
+        input_container = QWidget()
+        input_container.setObjectName("inputContainer")
+        
+        # Use grid layout for input area
+        input_grid = QGridLayout(input_container)
+        input_grid.setContentsMargins(10, 5, 10, 5)
+        input_grid.setSpacing(5)
+        
+        # Create thinking area for agent status indicators
+        self.thinking_area = QWidget()
+        self.thinking_area.setObjectName("thinkingArea")
+        self.thinking_area.setMaximumHeight(80)  # Limit height but allow for multiple lines
+        self.thinking_area.setMinimumHeight(40)
+        
+        thinking_layout = QVBoxLayout(self.thinking_area)
+        thinking_layout.setContentsMargins(8, 5, 8, 5)
+        thinking_layout.setSpacing(3)
+        thinking_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
+        
+        # Status indicator for agent actions
+        self.status_indicator = QLabel()
+        self.status_indicator.setObjectName("statusIndicator")
+        self.status_indicator.setMaximumWidth(800)  # Prevent extreme stretching
+        self.status_indicator.setWordWrap(True)     # Important: Enable word wrapping
+        self.status_indicator.setStyleSheet("""
+            #statusIndicator {
+                
+                font-style: italic;
+                font-size: 0.9em;
+                padding-left: 5px;
+            }
+        """)
+        self.status_indicator.setVisible(False)
+        thinking_layout.addWidget(self.status_indicator)
+        
+        # Add the thinking area to input grid, spanning the full width
+        input_grid.addWidget(self.thinking_area, 0, 0, 1, 3)
+        
+        # Create typing indicator
+        self.typing_indicator = QLabel("Agent is typing...")
+        self.typing_indicator.setObjectName("typingIndicator")
+        self.typing_indicator.setVisible(False)
+        input_grid.addWidget(self.typing_indicator, 1, 0, 1, 3)
+        
+        # Create suggestion container
+        self.suggestion_container = QWidget()
+        self.suggestion_container.setObjectName("suggestionContainer")
+        suggestion_layout = QHBoxLayout(self.suggestion_container)
+        suggestion_layout.setContentsMargins(0, 0, 0, 10)
+        suggestion_layout.setSpacing(5)
+        suggestion_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        input_grid.addWidget(self.suggestion_container, 2, 0, 1, 3)
+        self.suggestion_container.setVisible(False)
+        
+        # Create message input with rounded corners
+        self.message_input = QTextEdit()
+        self.message_input.setObjectName("messageInput")
+        self.message_input.setMinimumHeight(50)
+        self.message_input.setMaximumHeight(100)
+        self.message_input.setPlaceholderText("Type a message...")
+        self.message_input.textChanged.connect(self.adjust_input_height)
+        input_grid.addWidget(self.message_input, 3, 1, 1, 1)
+        
+        # Create the file upload button
+        self.upload_button = QPushButton()
+        self.upload_button.setObjectName("uploadButton")
+        self.upload_button.setToolTip("Upload File")
+        self.upload_button.setFixedSize(36, 36)
+        
+        # Set icon for upload button
+        upload_icon_path = load_bootstrap_icon("paperclip")
+        if upload_icon_path:
+            self.upload_button.setIcon(QIcon(upload_icon_path))
+            self.upload_button.setIconSize(QSize(20, 20))
+        
+        self.upload_button.clicked.connect(self.select_file)
+        input_grid.addWidget(self.upload_button, 3, 0, 1, 1)
+        
+        # Create the send button with rounded corners
+        self.send_button = QPushButton()
+        self.send_button.setObjectName("sendButton")
+        self.send_button.setToolTip("Send Message")
+        self.send_button.setFixedSize(36, 36)
+        
+        # Set icon for send button
+        send_icon_path = load_bootstrap_icon("send-fill")
+        if send_icon_path:
+            self.send_button.setIcon(QIcon(send_icon_path))
+            self.send_button.setIconSize(QSize(20, 20))
+        
+        self.send_button.clicked.connect(self.send_message)
+        input_grid.addWidget(self.send_button, 3, 2, 1, 1)
+        
+        # Add widgets to main layout (content area and input container)
+        main_layout.addWidget(content_widget, 1)  # Stretch factor
+        main_layout.addWidget(input_container, 0) # No stretch
+        
+        # Add styling for the thinking area and status indicators
+        self.setStyleSheet(self.styleSheet() + """
+            #thinkingArea {
+                border-radius: 4px;
+            }
+            
+            #statusIndicator {
+                font-style: italic;
+                
+            }
+            
+            #settingLabel {
+                font-size: 12px;
+            }
+            
+            #settingSpinbox {
+                border-radius: 3px;
+                padding: 2px;
+                max-height: 24px;
+            }
+        """)
+        
+    def update_status(self, text, is_thinking=True):
+        """Update the status indicator with agent's current action."""
+        # Ensure text is not too long for display
+        if len(text) > 100:
+            text = text[:97] + "..."
+            
+        # Set the text and make visible
+        if is_thinking:
+            self.status_indicator.setText(f"<span style='color: #4a6ee0;'>⚙️</span> {text}")
+        else:
+            self.status_indicator.setText(text)
+            
+        self.status_indicator.setVisible(True)
+        
+        # Ensure the thinking area is visible
+        self.thinking_area.setVisible(True)
+        
+        # Auto-hide after some time if not thinking
+        if not is_thinking:
+            QTimer.singleShot(5000, lambda: self.status_indicator.setVisible(False))
+    
+    def set_suggestions(self, suggestions):
+        """
+        Set suggestion chips.
+        
+        Args:
+            suggestions: List of suggestion strings
+        """
+        # Clear current suggestions
+        self.suggestions = suggestions
+        
+        # Clear suggestion container
+        while self.suggestion_container.layout().count():
+            item = self.suggestion_container.layout().takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        # Add new suggestions
+        for suggestion in suggestions:
+            chip = self.create_suggestion_chip(suggestion)
+            self.suggestion_container.layout().addWidget(chip)
+        
+        # Show/hide container based on suggestions
+        self.suggestion_container.setVisible(bool(suggestions))
+    
+    def create_suggestion_chip(self, text):
+        """
+        Create a clickable suggestion chip.
+        
+        Args:
+            text: The suggestion text
+            
+        Returns:
+            QPushButton: The suggestion chip button
+        """
+        chip = QPushButton(text)
+        chip.setObjectName("suggestionChip")
+        
+        # Calculate width based on text length (approximate)
+        font_metrics = QFontMetrics(chip.font())
+        text_width = font_metrics.horizontalAdvance(text)
+        
+        # Set button size (adjust padding as needed)
+        chip.setMinimumWidth(min(text_width + 20, 200))
+        chip.setMaximumWidth(min(text_width + 40, 300))
+        chip.setMinimumHeight(30)
+        chip.setMaximumHeight(30)
+        
+        # Connect click signal
+        chip.clicked.connect(lambda: self.handle_suggestion_click(text))
+        
+        return chip
+    
+    def handle_suggestion_click(self, suggestion):
+        """
+        Handle click on a suggestion chip.
+        
+        Args:
+            suggestion: The suggestion text
+        """
+        # Emit signal with suggestion text
+        self.suggestionClicked.emit(suggestion)
+        
+        # Clear suggestions
+        self.set_suggestions([])
+    
+    def adjust_input_height(self):
+        """Adjust the input height based on content."""
+        # Calculate new height based on document size
+        doc_height = self.message_input.document().size().height()
+        
+        # Ensure height is within min and max
+        new_height = max(50, min(doc_height + 20, 100))
+        
+        # Set new height
+        self.message_input.setMinimumHeight(int(new_height))
+        self.message_input.setMaximumHeight(int(new_height))
+    
+    def select_file(self):
+        """Open file dialog to select a file."""
+        file_dialog = QFileDialog(self)
+        file_dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+        file_dialog.setNameFilter("Data files (*.csv *.tsv *.xlsx *.txt)")
+        
+        if file_dialog.exec():
+            file_path = file_dialog.selectedFiles()[0]
+            self.fileUploadRequested.emit(file_path)
+            
+    def send_message(self):
+        """Send the current message."""
+        # Get message text
+        message = self.message_input.toPlainText().strip()
+        
+        # Clear input
+        self.message_input.clear()
+        
+        # Emit signal if message is not empty
+        if message:
+            # Only emit the signal, don't add user message here as the receiver will handle that
+            self.messageSent.emit(message)
+    
+    def add_user_message(self, message: str):
+        """Add a user message to the chat display."""
+        self.clean_json_formatting(message)
+        self._add_message_bubble(message, is_user=True)
+    
+    def clean_json_formatting(self, text: str) -> str:
+        """Clean up JSON content in the text."""
+        # First handle JSON wrapped in triple backticks
+        json_block_pattern = r'```(?:json)?\s*({[\s\S]*?})\s*```'
+        
+        def format_json_block(match):
+            try:
+                # Try to parse and pretty-print the JSON
+                json_str = match.group(1).strip()
+                parsed = json.loads(json_str)
+                formatted = json.dumps(parsed, indent=2)
+                return f"```json\n{formatted}\n```"
+            except json.JSONDecodeError:
+                # If not valid JSON, return the original
+                return match.group(0)
+        
+        # Replace JSON blocks with pretty-printed versions
+        text = re.sub(json_block_pattern, format_json_block, text)
+        
+        # Also try to handle inline JSON objects (more challenging)
+        # This is tricky because we need to avoid false positives
+        inline_json_pattern = r'({[\s\S]*?})'
+        
+        def format_inline_json(match):
+            try:
+                # Try to parse the potential JSON
+                json_str = match.group(1).strip()
+                parsed = json.loads(json_str)
+                
+                # If it parsed successfully and is non-trivial, format it
+                if isinstance(parsed, dict) and len(parsed) > 1:
+                    formatted = json.dumps(parsed, indent=2)
+                    return f"```json\n{formatted}\n```"
+                else:
+                    return match.group(0)
+            except json.JSONDecodeError:
+                # Not valid JSON, return original
+                return match.group(0)
+        
+        # Only apply to large JSON-like blocks to avoid false positives
+        if len(text) > 100 and '{' in text and '}' in text:
+            # Check if the text is not already in a code block
+            if '```' not in text:
+                text = re.sub(inline_json_pattern, format_inline_json, text)
+        
+        return text
+    
+    def _add_message_bubble(self, message: str, is_user: bool):
+        """
+        Add a message bubble to the chat.
+        
+        Args:
+            message: The message text
+            is_user: True if the message is from the user, False if from the agent
+        """
+        # Calculate position to insert message (before the spacer)
+        spacer_idx = self.chat_layout.count() - 1
+        
+        # Check if this is a plan or summary and use dedicated widget
+        is_plan_or_summary = False
+        if not is_user:
+            # Check for plan content
+            if ("<h1>Analysis Plan" in message or 
+                "<h2>Analysis Plan" in message or 
+                "# Analysis Plan" in message):
+                self._add_professional_plan(message, spacer_idx)
+                return
+            
+            # Check for summary content
+            if ("<h1>Analysis Summary" in message or 
+                "<h2>Analysis Summary" in message or 
+                "# Analysis Summary" in message or
+                "<h1>Summary of Analysis" in message or
+                "# Summary of Analysis" in message):
+                self._add_professional_summary(message, spacer_idx)
+                return
+                
+        # Create the message bubble frame for normal messages
+        bubble = QFrame()
+        bubble.setObjectName("userBubble" if is_user else "agentBubble")
+        
+        # Check if this is a markdown message with headers (likely analysis plan or summary)
+        is_special_content = False
+        if not is_user and ("<h1>" in message or "<h2>" in message or 
+                          "# " in message or "## " in message):
+            is_special_content = True
+            # Special styling for analysis plans and summaries
+            bubble.setObjectName("specialContentBubble")
+            bubble.setStyleSheet("""
+                QFrame#specialContentBubble {
+                    border: 1px solid #d1d5db;
+                    border-radius: 8px;
+                    padding: 15px;
+                    margin: 10px 5px;
+                    min-width: 95%;
+                    max-width: 98%;
+                }
+            """)
+        
+        # Create layout for the bubble
+        bubble_layout = QVBoxLayout(bubble)
+        bubble_layout.setContentsMargins(15, 10, 15, 10)
+        
+        # Create a QLabel for the message - simple plain text for user messages
+        message_label = QLabel()
+        message_label.setObjectName("messageLabel")
+        message_label.setWordWrap(True)
+        message_label.setOpenExternalLinks(True)
+        message_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse | 
+            Qt.TextInteractionFlag.LinksAccessibleByMouse
+        )
+        
+        # Use different text format based on sender
+        if is_user:
+            # User messages are always plain text
+            message_label.setTextFormat(Qt.TextFormat.PlainText)
+            message_label.setText(message)
+        else:
+            # Agent messages might be HTML from markdown conversion
+            message_label.setTextFormat(Qt.TextFormat.RichText)
+            message_label.setText(message)
+        
+        # Add to bubble layout
+        bubble_layout.addWidget(message_label)
+        
+        # Create container for alignment
+        container = QWidget()
+        container_layout = QHBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Align based on sender and content type
+        if is_user:
+            container_layout.addStretch()
+            container_layout.addWidget(bubble)
+        elif is_special_content:
+            # Center special content (plans, summaries) with slight flexibility
+            container_layout.addStretch(1)
+            container_layout.addWidget(bubble, 10)  # Give bubble more stretch weight
+            container_layout.addStretch(1)
+        else:
+            container_layout.addWidget(bubble)
+            container_layout.addStretch()
+        
+        # Insert into chat layout
+        self.chat_layout.insertWidget(spacer_idx, container)
+        
+        # Scroll to bottom
+        QTimer.singleShot(50, self.scroll_to_bottom)
+    
+    def _add_professional_plan(self, content, insert_position):
+        """Add a professionally formatted analysis plan using Qt widgets."""
+        from PyQt6.QtWidgets import QLabel, QVBoxLayout, QFrame, QHBoxLayout, QScrollArea
+        
+        # Create plan frame
+        plan_frame = QFrame()
+        plan_frame.setObjectName("planFrame")
+        plan_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        plan_frame.setStyleSheet("""
+            QFrame#planFrame {
+                border: 1px solid #4a6ee0;
+                border-radius: 8px;
+                padding: 15px;
+                margin: 10px 5px;
+            }
+        """)
+        
+        # Create frame layout
+        plan_layout = QVBoxLayout(plan_frame)
+        plan_layout.setContentsMargins(15, 15, 15, 15)
+        plan_layout.setSpacing(10)
+        
+        # Add title
+        title = QLabel("Analysis Plan")
+        title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        plan_layout.addWidget(title)
+        
+        # Create scroll area for steps
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_area.setMaximumHeight(400)
+        
+        # Parse the plan content
+        if content.startswith("# Analysis Plan") or content.startswith("<h1>Analysis Plan"):
+            # Extract from markdown or HTML
+            raw_content = ""
+            if content.startswith("#"):
+                # Markdown format
+                raw_content = content.replace("# Analysis Plan", "").strip()
+            else:
+                # HTML format - strip HTML tags
+                raw_content = re.sub(r'<[^>]*>', '', content)
+                raw_content = raw_content.replace("Analysis Plan", "").strip()
+            
+            # Extract steps from content
+            steps_container = QWidget()
+            steps_layout = QVBoxLayout(steps_container)
+            steps_layout.setContentsMargins(0, 0, 0, 0)
+            steps_layout.setSpacing(10)
+            
+            # Find all steps using regex
+            step_pattern = r"(?:Step|)\s*(\d+)[\.:\)]\s*(.*?)(?=(?:Step|)\s*\d+[\.:\)]|$)"
+            steps = re.findall(step_pattern, raw_content, re.DOTALL)
+            
+            if steps:
+                for step_num, step_desc in steps:
+                    # Clean up the description
+                    step_desc = step_desc.strip()
+                    
+                    # Check if it's a graph step
+                    is_graph_step = "[GRAPH]" in step_desc
+                    if is_graph_step:
+                        # Keep it simple - no emojis
+                        step_desc = step_desc.replace("[GRAPH]", "").strip()
+                        step_label = QLabel(f"Step {step_num}: {step_desc}")
+                        step_label.setStyleSheet("font-size: 15px; font-weight: bold;")
+                    else:
+                        step_label = QLabel(f"Step {step_num}: {step_desc}")
+                        step_label.setStyleSheet("font-size: 15px; font-weight: bold;")
+                    
+                    step_label.setWordWrap(True)
+                    steps_layout.addWidget(step_label)
+            else:
+                # No steps found, show raw content
+                content_label = QLabel(raw_content)
+                content_label.setWordWrap(True)
+                content_label.setStyleSheet("font-size: 14px;")
+                steps_layout.addWidget(content_label)
+            
+            # Set container as scroll area widget
+            scroll_area.setWidget(steps_container)
+            
+            # Add scroll area to plan layout
+            plan_layout.addWidget(scroll_area)
+        else:
+            # Fallback if parsing fails
+            content_label = QLabel(content)
+            content_label.setWordWrap(True)
+            plan_layout.addWidget(content_label)
+        
+        # Create alignment container
+        container = QWidget()
+        container_layout = QHBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.addStretch(1)
+        container_layout.addWidget(plan_frame, 10)
+        container_layout.addStretch(1)
+        
+        # Add to chat layout
+        self.chat_layout.insertWidget(insert_position, container)
+        
+        # Scroll to bottom
+        QTimer.singleShot(50, self.scroll_to_bottom)
+    
+    def _add_professional_summary(self, summary_data: dict):
+        """Add a professionally formatted analysis summary using Qt widgets from parsed JSON data."""
+        from PyQt6.QtWidgets import QLabel, QVBoxLayout, QFrame, QHBoxLayout, QScrollArea, QWidget
+        
+        # Calculate position to insert message (before the spacer)
+        insert_position = self.chat_layout.count() - 1
+        
+        # Create summary frame
+        summary_frame = QFrame()
+        summary_frame.setObjectName("summaryFrame")
+        summary_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        summary_frame.setMinimumWidth(600)
+        summary_frame.setStyleSheet("""
+            QFrame#summaryFrame {
+                border: 1px solid #28a745;
+                border-radius: 8px;
+                padding: 15px;
+                margin: 10px 5px;
+            }
+        """)
+        
+        # Create frame layout
+        summary_layout = QVBoxLayout(summary_frame)
+        summary_layout.setContentsMargins(15, 15, 15, 15)
+        summary_layout.setSpacing(10)
+        
+        # Add title
+        title_label = QLabel("Analysis Summary")
+        title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
+        summary_layout.addWidget(title_label)
+        
+        # --- Populate sections from JSON data --- 
+        
+        # Executive Summary
+        exec_summary = summary_data.get("executive_summary", "Not available")
+        exec_label = QLabel(f"<b>Executive Summary:</b> {exec_summary}")
+        exec_label.setWordWrap(True)
+        exec_label.setStyleSheet("font-size: 14px; margin-bottom: 10px;")
+        summary_layout.addWidget(exec_label)
+        
+        # Scroll area for remaining details
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_area.setMaximumHeight(400) # Keep height limit
+        
+        # Container for scrollable content
+        details_container = QWidget()
+        details_layout = QVBoxLayout(details_container)
+        details_layout.setContentsMargins(0, 0, 0, 0)
+        details_layout.setSpacing(15)
+        
+        # Key Findings
+        key_findings = summary_data.get("key_findings", [])
+        if key_findings:
+            findings_label = QLabel("<b>Key Findings:</b>")
+            findings_label.setStyleSheet("font-size: 15px; margin-bottom: 5px;")
+            details_layout.addWidget(findings_label)
+            for finding in key_findings:
+                bullet_container = QWidget()
+                bullet_layout = QHBoxLayout(bullet_container)
+                bullet_layout.setContentsMargins(10, 0, 0, 0)
+                bullet_layout.setSpacing(10)
+                bullet = QLabel("•")
+                bullet.setStyleSheet("font-weight: bold;")
+                content = QLabel(finding)
+                content.setWordWrap(True)
+                content.setStyleSheet("font-size: 14px;")
+                bullet_layout.addWidget(bullet, 0)
+                bullet_layout.addWidget(content, 1)
+                details_layout.addWidget(bullet_container)
+
+        # Methodology
+        methodology = summary_data.get("methodology", "Not available")
+        method_label = QLabel(f"<b>Methodology:</b> {methodology}")
+        method_label.setWordWrap(True)
+        method_label.setStyleSheet("font-size: 14px;")
+        details_layout.addWidget(method_label)
+        
+        # Detailed Results (Handle potential markdown)
+        detailed_results = summary_data.get("detailed_results", "Not available")
+        results_label = QLabel("<b>Detailed Results:</b>")
+        results_label.setStyleSheet("font-size: 15px; margin-bottom: 5px;")
+        details_layout.addWidget(results_label)
+        results_content = QLabel(self.markdown_to_html(detailed_results)) # Reuse markdown converter if needed
+        results_content.setWordWrap(True)
+        results_content.setStyleSheet("font-size: 14px;")
+        details_layout.addWidget(results_content)
+
+        # Visualizations Summary
+        viz_summary = summary_data.get("visualizations_summary", "Not available")
+        viz_label = QLabel(f"<b>Visualizations Summary:</b> {viz_summary}")
+        viz_label.setWordWrap(True)
+        viz_label.setStyleSheet("font-size: 14px;")
+        details_layout.addWidget(viz_label)
+
+        # Limitations
+        limitations = summary_data.get("limitations", "Not available")
+        limit_label = QLabel(f"<b>Limitations:</b> {limitations}")
+        limit_label.setWordWrap(True)
+        limit_label.setStyleSheet("font-size: 14px;")
+        details_layout.addWidget(limit_label)
+        
+        # --- End of sections --- 
+        
+        details_layout.addStretch() # Push content up
+        scroll_area.setWidget(details_container)
+        summary_layout.addWidget(scroll_area)
+        
+        # Create alignment container for the whole summary frame
+        container = QWidget()
+        container_layout = QHBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.addStretch(1)
+        container_layout.addWidget(summary_frame, 10) # Give frame more stretch weight
+        container_layout.addStretch(1)
+        
+        # Add to chat layout at the correct position
+        self.chat_layout.insertWidget(insert_position, container)
+        
+        # Extract and set 'data_analysis_next_steps' as suggestions
+        next_steps = summary_data.get("data_analysis_next_steps", [])
+        if isinstance(next_steps, list) and all(isinstance(step, str) for step in next_steps):
+            self.set_suggestions(next_steps)
+        else:
+            # Clear suggestions if data is invalid or missing
+            self.set_suggestions([])
+            print("Warning: 'data_analysis_next_steps' not found or invalid in summary data.")
+        
+        # Scroll to bottom (optional, as context/suggestions are added after)
+        # QTimer.singleShot(50, self.scroll_to_bottom)
+    
+    def scroll_to_bottom(self):
+        """Scroll the chat display to the bottom."""
+        scrollbar = self.chat_display.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
+    
+    def add_agent_message(self, message: str):
+        """Add an agent message to the chat."""
+        if hasattr(self, 'chat_widget'):
+            self.chat_widget.add_agent_message(message)
+        else:
+            # Detect special content (analysis plans and summaries)
+            is_special_content = False
+            
+            # Look for common patterns in analysis plans and summaries
+            if message.startswith("# Analysis Plan") or message.startswith("# Analysis Summary") or \
+               message.startswith("## Analysis Plan") or message.startswith("## Analysis Summary") or \
+               message.startswith("# Summary of Analysis") or "## Step " in message:
+                is_special_content = True
+                
+            # Process markdown before adding message
+            # Check if content appears to be markdown
+            if is_special_content or ("```" in message or "#" in message or "*" in message or 
+                message.strip().startswith(">") or "- " in message):
+                # Convert markdown to HTML
+                html_content = self.markdown_to_html(message)
+                self._add_message_bubble(html_content, is_user=False)
+            else:
+                # Plain text, no conversion needed
+                self._add_message_bubble(message, is_user=False)
+from datetime import datetime
+import os
+import sys
+import asyncio
+import time
+import pandas as pd
+import numpy as np
+import re
+import html
+import json
+import traceback
+import io
+import matplotlib
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+import base64
+import copy
+import threading
+import psutil
+import math
+import ast
+
+from PyQt6.QtCore import (
+    Qt, QSize, QTimer, QPropertyAnimation, QEasingCurve, 
+    QParallelAnimationGroup, QSequentialAnimationGroup, pyqtSignal, pyqtSlot,
+    QThread, QObject, QRect, QByteArray, QPointF
+)
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QScrollArea, 
+    QLabel, QLineEdit, QSplitter, QFrame, QSizePolicy, QSpacerItem,
+    QTextEdit, QProgressBar, QGraphicsOpacityEffect, QStackedWidget, QFileDialog, QDialog,
+    QGraphicsDropShadowEffect, QCheckBox, QRadioButton, QButtonGroup, QTabWidget, QGridLayout, QSpinBox,
+    QApplication, QComboBox
+)
+from PyQt6.QtGui import (
+    QIcon, QColor, QPainter, QPen, QBrush, QFont, QPalette, 
+    QLinearGradient, QFontMetrics, QConicalGradient
+)
+from PyQt6.QtSvgWidgets import QSvgWidget
+
+# Add necessary imports
+from qasync import asyncSlot
+from llms.client import call_llm_sync, call_llm_async
+
+# Import TaskStatus from common module
+from common.status import TaskStatus
+
+# Import the icon loader
+from helpers.load_icon import load_bootstrap_icon
+
+# Define pastel color palette
+PASTEL_COLORS = ['#FFB3BA', '#BAFFC9', '#BAE1FF', '#FFFFBA', '#FFB3F7', '#B3FFF7']
+PASTEL_CMAP = sns.color_palette(PASTEL_COLORS)
+# Configure SIP to avoid bad catcher results
+# To install SIP: pip install PyQt6-sip
+try:
+    import PyQt6.sip as sip
+    # Check if the attribute exists before calling it
+    if hasattr(sip, 'setdestroyonexit'):
+        sip.setdestroyonexit(False)  # Don't destroy C++ objects on exit
+    # Override the bad catcher result function if accessible
+    if hasattr(sip, 'setBadCatcherResult'):
+        # Pass None directly instead of a lambda function
+        sip.setBadCatcherResult(None)
+except ImportError:
+    pass
+
+# Set matplotlib backend
+matplotlib.use('Agg', force=True)  # Force Agg backend
+
+# Disable interactive mode
+plt.ioff()
+
+# Disable Qt-specific backend features
+plt.switch_backend('Agg')
+
+# Neutralize problematic socket handling in matplotlib
+import socket
+socket.socket = socket.socket
+
+
+class TimelineTask:
+    """Represents a task in the timeline."""
+    def __init__(self, 
+                 name: str, 
+                 description: str = "", 
+                 status: TaskStatus = TaskStatus.PENDING):
+        self.name = name
+        self.description = description
+        self.status = status
+        self.start_time = datetime.now()
+        self.end_time = None
+        self.duration = None
+    
+    def validate_transition(self, new_status: TaskStatus) -> bool:
+        """
+        Validate if a status transition is allowed.
+        """
+        # If trying to set the same status, always allow it
+        if self.status == new_status:
+            return True
+            
+        # Define valid transitions
+        valid_transitions = {
+            TaskStatus.PENDING: [TaskStatus.RUNNING, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.WARNING],
+            TaskStatus.RUNNING: [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.WARNING],
+            TaskStatus.COMPLETED: [],  # Terminal state
+            TaskStatus.FAILED: [],     # Terminal state
+            TaskStatus.WARNING: [TaskStatus.RUNNING, TaskStatus.COMPLETED, TaskStatus.FAILED]
+        }
+        
+        return new_status in valid_transitions.get(self.status, [])
+        
+    def start(self):
+        """Start the task."""
+        if not self.validate_transition(TaskStatus.RUNNING):
+            return False
+            
+        self.start_time = datetime.now()
+        self.status = TaskStatus.RUNNING
+        return True
+        
+    def complete(self):
+        """Mark the task as completed."""
+        if not self.validate_transition(TaskStatus.COMPLETED):
+            return False
+            
+        self.end_time = datetime.now()
+        self.duration = (self.end_time - self.start_time).total_seconds()
+        self.status = TaskStatus.COMPLETED
+        return True
+        
+    def fail(self):
+        """Mark the task as failed."""
+        if not self.validate_transition(TaskStatus.FAILED):
+            return False
+            
+        self.end_time = datetime.now()
+        self.duration = (self.end_time - self.start_time).total_seconds()
+        self.status = TaskStatus.FAILED
+        return True
+        
+    def warn(self):
+        """Mark the task with a warning."""
+        if not self.validate_transition(TaskStatus.WARNING):
+            return False
+            
+        self.end_time = datetime.now()
+        self.duration = (self.end_time - self.start_time).total_seconds()
+        self.status = TaskStatus.WARNING
+        return True
+        
+    def elapsed_time(self) -> float:
+        """Calculate elapsed time in seconds."""
+        if self.end_time:
+            return self.duration
+        else:
+            return (datetime.now() - self.start_time).total_seconds()
+            
+    def format_elapsed_time(self) -> str:
+        """Format elapsed time as a string."""
+        seconds = self.elapsed_time()
+        if seconds < 60:
+            return f"{seconds:.1f}s"
+        elif seconds < 3600:
+            minutes = seconds // 60
+            remainder = seconds % 60
+            return f"{int(minutes)}m {int(remainder)}s"
+        else:
+            hours = seconds // 3600
+            minutes = (seconds % 3600) // 60
+            return f"{int(hours)}h {int(minutes)}m"
+
+
+class SpinnerWidget(QWidget):
+    """Custom spinner animation widget."""
+    def __init__(self, parent=None, size=24, color=Qt.GlobalColor.blue):
+        super().__init__(parent)
+        self.size = size
+        self.color = color
+        self.angle = 0
+        self.setFixedSize(size, size)
+        
+        # Create timer for animation
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.rotate)
+        self.timer.start(40)  # Update slightly faster (was 50ms)
+        
+    def rotate(self):
+        """Rotate the spinner."""
+        self.angle = (self.angle + 12) % 360  # Slightly faster rotation (was 10)
+        self.update()
+        
+    def paintEvent(self, event):
+        """Paint the spinner."""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Calculate center and radius
+        center_x = self.width() / 2
+        center_y = self.height() / 2
+        radius = min(center_x, center_y) - 1
+        
+        # Calculate spinner dimensions for the new compact design
+        outer_radius = radius * 0.9
+        dot_radius = radius * 0.2
+        orbit_radius = radius * 0.6
+        
+        # Set up painter
+        painter.setPen(Qt.PenStyle.NoPen)
+        
+        # Create a more modern spinner with dots
+        dot_count = 8
+        for i in range(dot_count):
+            # Calculate position on the circle
+            angle = (self.angle + i * (360 / dot_count)) % 360
+            rad_angle = angle * 3.14159 / 180
+            
+            # Calculate opacity based on position (fade effect)
+            opacity = 0.25 + 0.75 * (1 - (i / dot_count))
+            
+            # Calculate color with opacity
+            color = QColor(self.color)
+            color.setAlphaF(opacity)
+            painter.setBrush(color)
+            
+            # Calculate dot position
+            x = center_x + orbit_radius * math.cos(rad_angle)
+            y = center_y + orbit_radius * math.sin(rad_angle)
+            
+            # Draw the dot
+            painter.drawEllipse(QPointF(x, y), dot_radius, dot_radius)
+
+
+class TimelineTaskWidget(QFrame):
+    """Widget that represents a task in the timeline with animated borders."""
+    def __init__(self, task: TimelineTask, parent=None):
+        super().__init__(parent)
+        self.task = task
+        self.spinner = None
+        self.highlight_animation = None
+        self.border_animation = None
+        self.shadow_effect = None
+        self.effects_container = None  # Container to hold our widget with effects
+        
+        # Create a timer to update elapsed time
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_time)
+        
+        # Initialize the UI
+        self.init_ui()
+        self.setup_animations()
+        
+        # Update every second if task is running
+        if task.status == TaskStatus.RUNNING:
+            self.timer.start(1000)
+            self.start_border_animation()
+        
     def init_ui(self):
         """Initialize the UI with grid layout."""
         self.setObjectName("timelineTask")
@@ -2047,180 +3523,6 @@ class DataAnalysisAgent:
         self.plan_steps = []  # List of plan steps in order
         self.current_plan_step_index = -1  # Index of current plan step
         self.graph_steps = []  # List of plan steps that should create graphs
-from datetime import datetime
-import os
-import sys
-import asyncio
-import time
-import pandas as pd
-import numpy as np
-import re
-import html
-import json
-import traceback
-import io
-import matplotlib
-import matplotlib.pyplot as plt
-import seaborn as sns
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-import base64
-import copy
-import threading
-import psutil
-import math
-import ast
-
-from PyQt6.QtCore import (
-    Qt, QSize, QTimer, QPropertyAnimation, QEasingCurve, 
-    QParallelAnimationGroup, QSequentialAnimationGroup, pyqtSignal, pyqtSlot,
-    QThread, QObject, QRect, QByteArray, QPointF
-)
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QScrollArea, 
-    QLabel, QLineEdit, QSplitter, QFrame, QSizePolicy, QSpacerItem,
-    QTextEdit, QProgressBar, QGraphicsOpacityEffect, QStackedWidget, QFileDialog, QDialog,
-    QGraphicsDropShadowEffect, QCheckBox, QRadioButton, QButtonGroup, QTabWidget, QGridLayout, QSpinBox,
-    QApplication, QComboBox
-)
-from PyQt6.QtGui import (
-    QIcon, QColor, QPainter, QPen, QBrush, QFont, QPalette, 
-    QLinearGradient, QFontMetrics, QConicalGradient
-)
-from PyQt6.QtSvgWidgets import QSvgWidget
-
-# Add necessary imports
-from qasync import asyncSlot
-from llms.client import call_llm_sync, call_llm_async
-
-# Import TaskStatus from common module
-from common.status import TaskStatus
-
-# Import the icon loader
-from helpers.load_icon import load_bootstrap_icon
-
-# Define pastel color palette
-PASTEL_COLORS = ['#FFB3BA', '#BAFFC9', '#BAE1FF', '#FFFFBA', '#FFB3F7', '#B3FFF7']
-PASTEL_CMAP = sns.color_palette(PASTEL_COLORS)
-# Configure SIP to avoid bad catcher results
-# To install SIP: pip install PyQt6-sip
-try:
-    import PyQt6.sip as sip
-    # Check if the attribute exists before calling it
-    if hasattr(sip, 'setdestroyonexit'):
-        sip.setdestroyonexit(False)  # Don't destroy C++ objects on exit
-    # Override the bad catcher result function if accessible
-    if hasattr(sip, 'setBadCatcherResult'):
-        # Pass None directly instead of a lambda function
-        sip.setBadCatcherResult(None)
-except ImportError:
-    pass
-
-# Set matplotlib backend
-matplotlib.use('Agg', force=True)  # Force Agg backend
-
-# Disable interactive mode
-plt.ioff()
-
-# Disable Qt-specific backend features
-plt.switch_backend('Agg')
-
-# Neutralize problematic socket handling in matplotlib
-import socket
-socket.socket = socket.socket
-
-
-class TimelineTask:
-    """Represents a task in the timeline."""
-    def __init__(self, 
-                 name: str, 
-                 description: str = "", 
-                 status: TaskStatus = TaskStatus.PENDING):
-        self.name = name
-        self.description = description
-        self.status = status
-        self.start_time = datetime.now()
-        self.end_time = None
-        self.duration = None
-    
-    def validate_transition(self, new_status: TaskStatus) -> bool:
-        """
-        Validate if a status transition is allowed.
-        """
-        # If trying to set the same status, always allow it
-        if self.status == new_status:
-            return True
-            
-        # Define valid transitions
-        valid_transitions = {
-            TaskStatus.PENDING: [TaskStatus.RUNNING, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.WARNING],
-            TaskStatus.RUNNING: [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.WARNING],
-            TaskStatus.COMPLETED: [],  # Terminal state
-            TaskStatus.FAILED: [],     # Terminal state
-            TaskStatus.WARNING: [TaskStatus.RUNNING, TaskStatus.COMPLETED, TaskStatus.FAILED]
-        }
-        
-        return new_status in valid_transitions.get(self.status, [])
-        
-    def start(self):
-        """Start the task."""
-        if not self.validate_transition(TaskStatus.RUNNING):
-            return False
-            
-        self.start_time = datetime.now()
-        self.status = TaskStatus.RUNNING
-        return True
-        
-    def complete(self):
-        """Mark the task as completed."""
-        if not self.validate_transition(TaskStatus.COMPLETED):
-            return False
-            
-        self.end_time = datetime.now()
-        self.duration = (self.end_time - self.start_time).total_seconds()
-        self.status = TaskStatus.COMPLETED
-        return True
-        
-    def fail(self):
-        """Mark the task as failed."""
-        if not self.validate_transition(TaskStatus.FAILED):
-            return False
-            
-        self.end_time = datetime.now()
-        self.duration = (self.end_time - self.start_time).total_seconds()
-        self.status = TaskStatus.FAILED
-        return True
-        
-    def warn(self):
-        """Mark the task with a warning."""
-        if not self.validate_transition(TaskStatus.WARNING):
-            return False
-            
-        self.end_time = datetime.now()
-        self.duration = (self.end_time - self.start_time).total_seconds()
-        self.status = TaskStatus.WARNING
-        return True
-        
-    def elapsed_time(self) -> float:
-        """Calculate elapsed time in seconds."""
-        if self.end_time:
-            return self.duration
-        else:
-            return (datetime.now() - self.start_time).total_seconds()
-            
-    def format_elapsed_time(self) -> str:
-        """Format elapsed time as a string."""
-        seconds = self.elapsed_time()
-        if seconds < 60:
-            return f"{seconds:.1f}s"
-        elif seconds < 3600:
-            minutes = seconds // 60
-            remainder = seconds % 60
-            return f"{int(minutes)}m {int(remainder)}s"
-        else:
-            hours = seconds // 3600
-            minutes = (seconds % 3600) // 60
-            return f"{int(hours)}h {int(minutes)}m"
 
 
 class SpinnerWidget(QWidget):
@@ -4225,14 +5527,41 @@ class DataAnalysisAgent:
             # Make sure current state has latest dataframes
             current_state["dataframes"] = self.dataframes.copy()
             
-            # Get next code to execute
-            code_to_execute = await self._get_next_code(current_state)
-            
-            if "ANALYSIS_COMPLETE" in code_to_execute:
+            # Get next code to execute - check for recovery first
+            recovery_needed = False
+            last_step_info = current_state["completed_steps"][-1] if current_state["completed_steps"] else None
+            if last_step_info and last_step_info.get("error"):
+                # Check the reflection for recovery flag
+                reflection = last_step_info.get("reflection")
+                if isinstance(reflection, dict) and reflection.get("recovery_needed"):
+                    recovery_needed = True
+                    
+            if recovery_needed:
                 if output_callback:
-                    output_callback("\nAnalysis Complete\n", self.MSG_THINKING)
-                break
-                
+                    output_callback("🛠️ Attempting to recover from error...", self.MSG_THINKING)
+                code_to_execute = await self._get_recovery_code(
+                    current_state, 
+                    last_step_info['code'], 
+                    last_step_info['error'], 
+                    last_step_info['output'], 
+                    last_step_info['reflection']
+                )
+            else:
+                code_to_execute = await self._get_next_code(current_state)
+
+            if "ANALYSIS_COMPLETE" in code_to_execute:
+                # Only exit if ANALYSIS_COMPLETE detected AND we're in the last plan step
+                is_final_step = self.current_plan_step_index + 1 >= len(self.plan_steps)
+                if is_final_step:
+                    if output_callback:
+                        output_callback("\nAnalysis Complete\n", self.MSG_THINKING)
+                    break
+                else:
+                    # Log but ignore ANALYSIS_COMPLETE if we're not in the final step
+                    print(f"⚠️ Ignoring premature ANALYSIS_COMPLETE at plan step {self.plan_step} (step {self.current_plan_step_index + 1} of {len(self.plan_steps)})")
+                    # Replace it with a comment to ensure it doesn't trigger the loop exit
+                    code_to_execute = code_to_execute.replace("ANALYSIS_COMPLETE", "# ANALYSIS_COMPLETE (removed by agent)")
+            
             # Show the code we're about to execute
             if output_callback:
                 output_callback(f"```python\n{code_to_execute}\n```\n", self.MSG_CODE)
@@ -4279,7 +5608,11 @@ class DataAnalysisAgent:
                     current_state["reflections"][self.step_count] = reflection_text
             
             if output_callback:
-                output_callback(f"Reflection:\n{reflection}\n", self.MSG_REFLECTION)
+                if isinstance(reflection, dict):
+                    reflection_to_send = json.dumps(reflection, indent=2)
+                else:
+                    reflection_to_send = str(reflection)
+                output_callback(reflection_to_send, self.MSG_REFLECTION)
                 
             current_state["completed_steps"].append({
                 "step": self.step_count,
@@ -4292,17 +5625,18 @@ class DataAnalysisAgent:
             current_state["current_step"] += 1
             
             # Check if we should advance to the next plan step
-            # Only advance if execution was successful (no error) and we're not in recovery
+            # Check error *before* checking reflection for recovery
+            error_occurred = error is not None and error.strip() != ""
             recovery_needed = False
-            if isinstance(reflection, dict) and "recovery_needed" in reflection:
-                recovery_needed = reflection["recovery_needed"]
-            
-            if not error and not recovery_needed and self._should_advance_plan_step(current_state):
+            if isinstance(reflection, dict):
+                recovery_needed = reflection.get("recovery_needed", False)
+
+            if not error_occurred and not recovery_needed and self._should_advance_plan_step(current_state):
                 self._advance_to_next_plan_step()
                 if output_callback:
                     if self.plan_step <= len(self.plan_steps):
                         output_callback(f"\n🔍 Moving to Plan Step {self.plan_step}\n", self.MSG_THINKING)
-            
+        
         # Final summary
         summary = await self._get_final_summary(current_state)
         if output_callback:
@@ -4592,7 +5926,7 @@ class DataAnalysisAgent:
                 for match in re.finditer(step_pattern, plan_text, re.DOTALL):
                     step_num = int(match.group(1))
                     step_text = match.group(2).strip()
-                    if any(word in step_text.lower() for word in ["plot", "chart", "graph", "visual", "figure", "histogram", "scatter"]):
+                    if any(word in step_text.lower() for word in ["plot", "chart", "graph", "visual", "figure", "histogram", "scatter", "bar", "pie"]):
                         graph_steps.append(step_num)
                         # Try to extract the visualization type
                         type_patterns = ["histogram", "scatter plot", "bar chart", "line graph", "heatmap", "box plot", "pie chart"]
@@ -4720,15 +6054,17 @@ class DataAnalysisAgent:
         1. Be self-contained for the current step
         2. Use appropriate error handling (try/except blocks where necessary)
         3. Print or display meaningful results
-        4. Return 'ANALYSIS_COMPLETE' in a print statement if all steps are completed
+        4. IMPORTANT: Only print 'ANALYSIS_COMPLETE' if this is the final step (step {len(self.plan_steps)}) 
+           and all steps have been executed. Do NOT include this in earlier steps.
         
         Task: {state['task']}
         
         Plan: {state['plan']}
         
-        Current step: {state["current_step"] + 1}
+        Current target: Plan Step {self.plan_step} (step {self.current_plan_step_index + 1} of {len(self.plan_steps)})
+        Current execution step number: {state["current_step"] + 1}
         
-        Previous execution history:
+        Previous execution history (for context):
         {history}
         
         Available dataframes:
@@ -4736,12 +6072,13 @@ class DataAnalysisAgent:
         
         {viz_instructions}
         
-        Generate ONLY the Python code for the next step in the analysis. The code must:
+        Generate ONLY the Python code for **Plan Step {self.plan_step}** in the analysis. The code must:
         1. Be valid Python that can run directly
         2. Reference existing dataframes by name if they exist
-        3. Create meaningful visualizations where appropriate
+        3. Create meaningful visualizations where appropriate for this plan step
         4. Include print statements to show progress and important results
-        5. Print 'ANALYSIS_COMPLETE' if this is the final step
+        5. DO NOT print 'ANALYSIS_COMPLETE' unless this is the final plan step (step {len(self.plan_steps)}) 
+           and all other steps have been executed successfully.
         """
         
         response_json = await call_llm_async(prompt)
@@ -4912,6 +6249,14 @@ except Exception as e:
             sys.stdout = output_buffer
             exec(safe_code, globals(), local_vars)
             result = "Success"
+            
+            # Check if the output contains "ANALYSIS_COMPLETE" and log it
+            if "ANALYSIS_COMPLETE" in output_buffer.getvalue():
+                print(f"⚠️ WARNING: Code returned ANALYSIS_COMPLETE in step {self.step_count}, plan step {self.plan_step}")
+                print(f"This is plan step {self.current_plan_step_index + 1} of {len(self.plan_steps)}")
+                # Only allow ANALYSIS_COMPLETE to actually terminate execution if we're in the last plan step
+                if self.current_plan_step_index + 1 < len(self.plan_steps):
+                    output_buffer.write("\n⚠️ WARNING: ANALYSIS_COMPLETE detected but more steps remain in the plan. Continuing execution.\n")
             
             # Get any new or modified dataframes
             for var_name, var_value in local_vars.items():
@@ -5537,6 +6882,9 @@ class AgentInterface(QWidget):
         # Track loaded data files
         self.loaded_files = []
         
+        # Add conversation history
+        self.conversation_history = []
+        
         # Initialize UI
         self.init_ui()
         
@@ -5804,18 +7152,44 @@ class AgentInterface(QWidget):
                     # First-time analysis or no previous results
                     self.process_data_analysis(message, task)
     
-    def handle_conversational_message(self, message: str, task: TimelineTask):
-        """Process conversational messages with an LLM."""
+    @asyncSlot(str, TimelineTask)
+    async def handle_conversational_message(self, message: str, task: TimelineTask):
+        """Process conversational messages with an LLM using async call."""
         self.chat_widget.set_typing_indicator(True)
-        
-        # TODO: Implement conversational agent
-        # For now, just echo back a simple response
-        response = f"You said: {message}\n\nI'm currently in development for conversational mode. Please switch to data analysis mode to analyze your data."
-        
-        # Simulate typing delay
-        QTimer.singleShot(1000, lambda: self.chat_widget.add_agent_message(response))
-        QTimer.singleShot(1000, lambda: self.chat_widget.set_typing_indicator(False))
-        QTimer.singleShot(1000, lambda: self.update_task_status(task.name, TaskStatus.COMPLETED))
+        self.update_task_status(task.name, TaskStatus.RUNNING)
+
+        try:
+            # Append the user's message to the conversation history
+            self.conversation_history.append({"role": "user", "content": message})
+            
+            # Construct a simple prompt including the conversation history
+            # Format for a basic chat model (adjust if your LLM needs specific formatting)
+            prompt_history = "\n".join([f"{entry['role'].capitalize()}: {entry['content']}" for entry in self.conversation_history])
+            prompt = f"Continue the conversation based on this history:\n\n{prompt_history}\nAssistant:"
+            
+            # Call the LLM using call_llm_async (ensure it's imported)
+            response = await call_llm_async(prompt)
+            
+            # Clean up response (e.g., remove potential leading/trailing whitespace or unwanted prefixes)
+            response = response.strip()
+            
+            # Append the LLM's response to the conversation history
+            self.conversation_history.append({"role": "assistant", "content": response})
+            
+            # Add agent message to chat and update task status
+            self.chat_widget.add_agent_message(response)
+            self.update_task_status(task.name, TaskStatus.COMPLETED)
+            
+        except Exception as e:
+            print(f"Error during conversational LLM call: {e}")
+            traceback.print_exc()
+            error_message = f"Sorry, I encountered an error trying to respond: {e}"
+            self.chat_widget.add_agent_message(error_message)
+            self.update_task_status(task.name, TaskStatus.FAILED)
+            
+        finally:
+            # Ensure typing indicator is turned off
+            self.chat_widget.set_typing_indicator(False)
     
     def process_data_analysis(self, message: str, task: TimelineTask):
         """Process data analysis requests."""
@@ -6039,37 +7413,56 @@ ANALYSIS_CONFIG:
                 QTimer.singleShot(0, lambda: self.step_outputs.add_step(current_step, output=output_content))
         
         elif msg_type == self.data_analysis_agent.MSG_REFLECTION:
-            # Reflection data should be a dictionary now
-            if isinstance(text, dict):
-                reflection_content = text.get("reflection_text", "Reflection not available.")
-                has_error = text.get("has_error", False)
-                # Add reflection to step outputs
-                current_step = self.data_analysis_agent.step_count
-                QTimer.singleShot(0, lambda: self.step_outputs.add_step(
-                    current_step, 
-                    reflection=reflection_content, 
-                    error=True if has_error else None # Optionally mark the step as error if reflection indicates it
-                ))
-                
-                # Store the reflection in the agent's mapping
-                if hasattr(self.data_analysis_agent, 'reflection_mapping'):
-                     self.data_analysis_agent.reflection_mapping[current_step] = reflection_content
-                     
-                # Optionally, display reflection briefly in status bar or a dedicated panel?
-                # For now, just log it.
-                print(f"Step {current_step} Reflection: {reflection_content[:100]}...")
-                
+            # Reflection data might be a JSON string that needs to be parsed
+            reflection_content = "Reflection not available."
+            has_error = False
+            current_step = self.data_analysis_agent.step_count # Get step number *before* potentially advancing
+
+            # First, try to parse as JSON if it looks like JSON
+            if isinstance(text, str) and (text.strip().startswith('{') or text.strip().startswith('[')):
+                try:
+                    reflection_data = json.loads(text)
+                    # Extract content and error status from parsed dict
+                    if isinstance(reflection_data, dict):
+                        reflection_content = reflection_data.get("reflection", "Reflection text missing.") 
+                        has_error = reflection_data.get("has_error", False)
+                        # Store the structured reflection in the agent's mapping if needed
+                        if hasattr(self.data_analysis_agent, 'reflection_mapping'):
+                            self.data_analysis_agent.reflection_mapping[current_step] = reflection_data
+                    else:
+                        reflection_content = str(reflection_data)
+                except json.JSONDecodeError:
+                    # Not valid JSON, use as-is
+                    reflection_content = text
+                    # Try to infer error status (less reliable)
+                    if "error" in text.lower() or "fail" in text.lower():
+                        has_error = True
             else:
-                # Handle case where reflection is unexpectedly not a dict
-                print(f"Warning: Received reflection message but data was not a dictionary: {text}")
-                # Display raw text as fallback in step output
-                current_step = self.data_analysis_agent.step_count
-                QTimer.singleShot(0, lambda: self.step_outputs.add_step(
-                    current_step, 
-                    reflection=f"[Display Error] {str(text)[:200]}"
-                ))
+                # Handle case where reflection is just a string (fallback)
+                reflection_content = text
+                # Try to infer error status (less reliable)
+                if "error" in text.lower() or "fail" in text.lower():
+                    has_error = True
                 
-            # Don't add raw reflection dictionary to main chat
+            # Add reflection content to the correct step output widget
+            # Pass the extracted text content, not the raw dict/string
+            # Also pass the error status determined here
+            # Use QTimer.singleShot with 0 delay to ensure it runs in the main thread event loop
+            QTimer.singleShot(0, lambda step=current_step, content=reflection_content, error_state=has_error:
+                self.step_outputs.add_step(
+                    step, 
+                    reflection=content,
+                    # Optionally mark step with error based on reflection, 
+                    # but _execute_code already handles explicit errors more directly.
+                    # Let's rely on explicit errors for the red border.
+                    # error=error_state 
+                )
+            )
+                 
+            # Log it for debugging
+            print(f"Step {current_step} Reflection Added: {reflection_content[:100]}...")
+                
+            # Don't add raw reflection dictionary/string to main chat
             return 
             
         elif msg_type == "plan":
@@ -6169,29 +7562,40 @@ ANALYSIS_CONFIG:
             # If text is somehow still a string, try parsing it (shouldn't happen with the agent changes)
             if isinstance(text, str):
                 try:
-                    if text.strip().startswith("```json"):
-                        text = re.sub(r'^```json\s*|\s*```$', '', text.strip())
-                    summary_data = json.loads(text)
-                except json.JSONDecodeError:
+                    # Attempt to clean and parse potential JSON string
+                    cleaned_text = text.strip()
+                    if cleaned_text.startswith("```json"): 
+                        cleaned_text = re.sub(r'^```json\s*|\s*```$', '', cleaned_text).strip()
+                    elif cleaned_text.startswith("```"): # Handle generic code blocks too
+                         cleaned_text = re.sub(r'^```\s*|\s*```$', '', cleaned_text).strip()
+                    summary_data = json.loads(cleaned_text)
+                except json.JSONDecodeError as e:
                     print(f"Error: Received summary as string but failed to parse JSON: {text[:100]}...")
-                    # Use the fallback error structure
+                    # Use the fallback error structure *within* a dictionary
                     summary_data = {
-                        "executive_summary": "Error: Could not display summary.",
-                        "key_findings": [f"Received invalid summary format."],
+                        "executive_summary": "Error: Could not parse summary response.",
+                        "key_findings": [f"Parsing Error: {e}"],
                         "methodology": "N/A",
-                        "detailed_results": f"Raw response:\n{text}",
+                        "detailed_results": f"Raw LLM Response:\n{text}",
                         "visualizations_summary": "N/A",
                         "limitations": "N/A",
-                        "next_steps": []
+                        "data_analysis_steps": [],
+                        "study_related_steps": []
                     }
 
-            # Ensure summary_data is a dictionary
+            # Ensure summary_data is a dictionary before proceeding
             if not isinstance(summary_data, dict):
-                print("Error: summary_data is not a dictionary!")
+                print(f"Error: summary_data is not a dictionary! Type: {type(summary_data)}")
+                # Create a fallback dictionary indicating the error
                 summary_data = {
-                    "executive_summary": "Error: Invalid summary data structure.",
-                    "key_findings": [], "methodology": "", "detailed_results": "", 
-                    "visualizations_summary": "", "limitations": "", "next_steps": []
+                    "executive_summary": f"Error: Invalid summary data structure received (Type: {type(summary_data)}).",
+                    "key_findings": [], 
+                    "methodology": "N/A", 
+                    "detailed_results": f"Received Data:\n{str(summary_data)}", 
+                    "visualizations_summary": "N/A", 
+                    "limitations": "N/A", 
+                    "data_analysis_steps": [],
+                    "study_related_steps": []
                 }
                 
             # Store the structured summary content for potential continuation
@@ -6861,6 +8265,9 @@ ANALYSIS_CONFIG:
         # Clear any tracked next steps
         if hasattr(self, 'potential_next_steps'):
             self.potential_next_steps = []
+        
+        # Clear conversation history
+        self.conversation_history = []
         
         # Add welcome message based on current mode
         if self.conversational_mode_rb.isChecked():
@@ -7927,25 +9334,55 @@ class StepOutputWidget(QFrame):
                 }
             """)
     
-    def set_reflection(self, reflection):
-        """Add reflection widget."""
-        if reflection and reflection.strip():
+    def set_reflection(self, reflection_text):
+        """Add reflection widget with the provided text."""
+        if reflection_text and reflection_text.strip():
             self.has_reflection = True
             
-            # Remove any existing reflection
-            if self.reflection_frame:
+            # Remove any existing reflection frame first
+            if self.reflection_frame and self.reflection_layout.indexOf(self.reflection_frame) != -1:
                 self.reflection_layout.removeWidget(self.reflection_frame)
                 self.reflection_frame.deleteLater()
+                self.reflection_frame = None
             
-            # Create new reflection widget
+            # Create a new ReflectionWidget
+            # Pass the error status of the step to the ReflectionWidget
             self.reflection_frame = ReflectionWidget(has_error=self.has_error)
-            self.reflection_frame.set_content(reflection)
+            self.reflection_frame.set_content(reflection_text) # Pass the actual text
             
-            # Add to reflection layout
+            # Add the new frame to the reflection layout
             self.reflection_layout.addWidget(self.reflection_frame)
             
-            # Show the reflection container
+            # Ensure the reflection container is visible
             self.reflection_container.setVisible(True)
+            
+            # Adjust border color if reflection indicates an error wasn't previously caught
+            if "error" in reflection_text.lower() and not self.has_error:
+                 self.setStyleSheet("""
+                    QFrame#stepOutputWidget {
+                        border: 1px solid #f39c12; /* Warning color */
+                        border-radius: 8px;
+                        margin: 10px 0px;
+                    }
+                """)
+            elif self.has_error:
+                 # Keep error border if already set
+                 self.setStyleSheet("""
+                    QFrame#stepOutputWidget {
+                        border: 1px solid #e74c3c; /* Error color */
+                        border-radius: 8px;
+                        margin: 10px 0px;
+                    }
+                """)
+            else:
+                 # Default border
+                 self.setStyleSheet("""
+                    QFrame#stepOutputWidget {
+                        border: 1px solid; /* Use theme default */
+                        border-radius: 8px;
+                        margin: 10px 0px;
+                    }
+                """)
     
     def toggle_collapse(self):
         """Toggle collapsed state."""
@@ -8030,10 +9467,8 @@ class StepOutputsWidget(QWidget):
             
         # Reflections always come after other content
         if reflection:
-            # Use a longer delay to ensure reflection appears last even if added at same time
-            # This ensures reflections are always shown after all other content for this step
-            # Fix: Properly capture reflection parameter in lambda to prevent variable binding issues
-            QTimer.singleShot(200, lambda content=reflection: step_widget.set_reflection(content))
+            # Add reflection immediately without delay
+            step_widget.set_reflection(reflection)
         
         # Scroll to this step
         QTimer.singleShot(250, lambda step=step_number: self.scroll_to_step(step))
@@ -8396,8 +9831,6 @@ class ReflectionHistoryWidget(QWidget):
         """Stub method that does nothing."""
         pass
         
-    def scroll_to_bottom(self):
-        """Stub method that does nothing."""
     def scroll_to_bottom(self):
         """Stub method that does nothing."""
         pass

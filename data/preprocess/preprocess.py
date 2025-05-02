@@ -2153,3 +2153,202 @@ class DataPreprocessingWidget(QWidget):
                 self.save_current_dataset_state()
                 self.update_status("Hypothesis updated")
                 
+    @asyncSlot()
+    async def run_final_validation(self):
+        """Run Step 5: Final validation of the dataset"""
+        step_id = "final_validation"
+        analysis = ""
+        original_df_before_step = self.current_dataset.copy() if self.current_dataset is not None else None
+
+        try:
+            self.update_status("Performing final validation...")
+            self.step_statuses[step_id] = "In Progress"
+            self.step_status.setText("In Progress")
+            self.update_step_list_status()
+            self.step_action_button.setEnabled(False)
+
+            analysis = "## Final Dataset Validation\\n\\n"
+
+            df = self.current_dataset
+            if df is None: raise ValueError("Dataset not loaded.")
+
+            # Check if previous steps are completed and required info is available
+            if self.step_statuses.get("identify_patient_id") != "Completed":
+                 analysis += "⚠️ **Prerequisite Error**: Step 1 (Identify Patient ID) not completed.\\n"
+                 raise ValueError("Step 1 not completed.")
+            if self.step_statuses.get("normalize_rows") != "Completed":
+                 analysis += "⚠️ **Prerequisite Error**: Step 2 (Normalize Rows) not completed.\\n"
+                 raise ValueError("Step 2 not completed.")
+            if self.step_statuses.get("check_grouper") != "Completed":
+                 analysis += "⚠️ **Prerequisite Error**: Step 3 (Check Grouping Variable) not completed.\\n"
+                 raise ValueError("Step 3 not completed.")
+            if self.step_statuses.get("validate_columns") != "Completed":
+                 analysis += "⚠️ **Prerequisite Error**: Step 4 (Validate Columns) not completed.\\n"
+                 raise ValueError("Step 4 not completed.")
+
+            if not self.patient_id_column:
+                 analysis += "⚠️ **Error**: Patient Identifier is missing.\\n"
+                 raise ValueError("Patient Identifier missing.")
+            if not self.grouping_variable:
+                 analysis += "⚠️ **Error**: Grouping Variable is missing.\\n"
+                 raise ValueError("Grouping Variable missing.")
+
+            analysis += f"Using Patient Identifier: `{self.patient_id_column}`\\n"
+            analysis += f"Using Grouping Variable: `{self.grouping_variable}`\\n\\n"
+
+            # Get basic info
+            rows, cols = df.shape
+            missing_pct = (df.isna().sum().sum() / (rows * cols)) * 100 if rows * cols > 0 else 0
+            group_counts = df[self.grouping_variable].value_counts()
+            balance_ratio = 0.0
+            if len(group_counts) >= 2:
+                min_count = group_counts.min()
+                max_count = group_counts.max()
+                balance_ratio = min_count / max_count if max_count > 0 else 0
+
+            # Use LLM for final assessment
+            prompt = f"""
+            I have a preprocessed healthcare dataset with {rows} rows and {cols} columns, ready for final validation before statistical analysis.
+
+            Key Information:
+            - Patient Identifier: {self.patient_id_column}
+            - Grouping Variable: {self.grouping_variable}
+            - Missing Data: {missing_pct:.1f}% overall
+            - Group Distribution ({self.grouping_variable}):
+            {group_counts.to_string()}
+            - Group Balance Ratio (min/max): {balance_ratio:.2f} (if applicable)
+
+            Sample Data:
+            {df.head(5).to_string()}
+            """
+
+            if self.hypothesis:
+                prompt += f"""
+                Study Hypothesis: {self.hypothesis}
+                """
+
+            prompt += f"""
+
+            Please perform a final assessment of this dataset's readiness for statistical analysis, considering the hypothesis if provided.
+            Evaluate:
+            1. Final check for any critical issues (e.g., excessive missing data, severe imbalance).
+            2. Suitability of the grouping variable for the analysis.
+            3. Overall readiness for statistical modeling or hypothesis testing.
+            4. Assign a readiness score from 1 (Not Ready) to 10 (Fully Ready).
+
+            Return the response in this JSON format:
+            {{
+                "assessment_summary": "A brief text summary of the dataset's readiness.",
+                "issues_found": [
+                    {{"severity": "Critical|Warning|Info", "description": "Description of the issue"}}
+                ],
+                "grouping_variable_assessment": "Evaluation of the grouping variable's suitability.",
+                "readiness_score": number (1-10),
+                "recommendations": ["Final recommendations before analysis"]
+            }}
+            """
+
+            validation_results = await call_llm_async_json(prompt, model=llm_config.default_json_model)
+
+            if not isinstance(validation_results, dict):
+                analysis += f"⚠️ **Error**: LLM did not return valid JSON for final validation. Response:\\n```\\n{validation_results}\\n```\\n"
+                raise TypeError("LLM response for final validation is not a dictionary.")
+
+            # --- Process LLM results ---
+            summary = validation_results.get("assessment_summary", "No summary provided.")
+            issues = validation_results.get("issues_found", [])
+            grouper_eval = validation_results.get("grouping_variable_assessment", "No assessment.")
+            score = validation_results.get("readiness_score", "N/A")
+            recommendations = validation_results.get("recommendations", [])
+
+            analysis += f"### LLM Assessment Summary\\n\\n{summary}\\n\\n"
+
+            if issues:
+                analysis += "### Issues Found\\n\\n"
+                for issue in issues:
+                     severity = issue.get('severity', 'Info')
+                     desc = issue.get('description', 'No description.')
+                     analysis += f"- **[{severity}]**: {desc}\\n"
+                analysis += "\\n"
+            else:
+                 analysis += "✓ No critical issues identified by LLM.\\n\\n"
+
+            analysis += f"### Grouping Variable Assessment\\n\\n{grouper_eval}\\n\\n"
+
+            analysis += f"### Readiness Score (from LLM)\\n\\n**{score} / 10**\\n\\n"
+
+            if recommendations:
+                analysis += "### Final Recommendations\\n\\n"
+                for rec in recommendations:
+                     analysis += f"- {rec}\\n"
+                analysis += "\\n"
+
+            # Step completion
+            self.step_statuses[step_id] = "Completed"
+            self.step_status.setText("Completed")
+            self.update_status("Final validation complete.")
+            self.step_results[step_id] = {
+                "dataframe": self.current_dataset.copy(),
+                "analysis": analysis
+            }
+            self.save_current_dataset_state()
+            # Potentially update overall status label based on score here
+            self.update_overall_status_label() # Add call to update main status
+
+
+        except Exception as e:
+            error_message = f"Error during final validation: {str(e)}"
+            print(f"[ERROR] {error_message}")
+            analysis += f"\\n--- ERROR --- \\n{error_message}\\n"
+            self.step_statuses[step_id] = "Error"
+            self.step_status.setText("Error")
+            self.update_status(error_message)
+            # Revert dataset not needed here as no modifications are made
+
+        finally:
+            self.analysis_text.setText(analysis)
+            self.update_step_list_status()
+            if self.current_dataset is not None:
+                 self.display_dataset(self.current_dataset) # Refresh display
+
+            # Re-enable button only if error occurred
+            items = self.steps_list.selectedItems()
+            if self.step_statuses.get(step_id) == "Error" and items and items[0].data(Qt.ItemDataRole.UserRole) == step_id:
+                 self.step_action_button.setEnabled(True)
+            else:
+                 self.step_action_button.setEnabled(False) # Disable on complete or if selection changed
+            self.display_tabs.setCurrentIndex(1) # Show analysis tab
+
+    def update_overall_status_label(self):
+        """Updates the main preprocessing status label based on final validation."""
+        if all(status == "Completed" for status in self.step_statuses.values()):
+             # Check readiness score from final validation if available
+             final_val_results = self.step_results.get("final_validation", {}).get("analysis", "")
+             # Improved check for readiness score in text
+             score_line = next((line for line in final_val_results.split('\\n') if "Readiness Score (from LLM)" in line), None)
+             if score_line:
+                  try:
+                      # Extract score: find the bold part "**score / 10**"
+                      score_part = score_line.split("**")[1].split("/")[0].strip()
+                      score = int(score_part)
+                      if score >= 7: # Assuming 7+ is ready
+                           self.preprocessing_status_label.setText(f"Status: Ready for Analysis ({score}/10)")
+                           self.preprocessing_status_label.setStyleSheet("color: #28a745;") # Green
+                      else:
+                           self.preprocessing_status_label.setText(f"Status: Partially Ready ({score}/10)")
+                           self.preprocessing_status_label.setStyleSheet("color: #ffc107;") # Yellow
+                  except (IndexError, ValueError, TypeError) as e:
+                      print(f"[WARN] Could not parse readiness score from line: '{score_line}'. Error: {e}")
+                      self.preprocessing_status_label.setText("Status: Processed (Score Parse Error)")
+                      self.preprocessing_status_label.setStyleSheet("color: #17a2b8;") # Info blue
+             else:
+                  self.preprocessing_status_label.setText("Status: Processed (Score N/A)")
+                  self.preprocessing_status_label.setStyleSheet("color: #17a2b8;") # Info blue
+        elif any(status != "Not Started" for status in self.step_statuses.values()):
+             self.preprocessing_status_label.setText("Status: Partially Processed")
+             self.preprocessing_status_label.setStyleSheet("color: #ffc107;") # Yellow/amber
+        else:
+             self.preprocessing_status_label.setText("Status: Not Processed")
+             self.preprocessing_status_label.setStyleSheet("color: #6c757d;") # Gray
+
+
